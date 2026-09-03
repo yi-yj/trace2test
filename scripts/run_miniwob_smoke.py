@@ -8,9 +8,13 @@ import os
 import platform
 import re
 import subprocess
+import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import browsergym.miniwob  # noqa: F401 - registers MiniWoB Gym environments
 import gymnasium as gym
@@ -51,10 +55,32 @@ def _json_safe(value: Any) -> Any:
     return repr(value)
 
 
+@contextmanager
+def _miniwob_base_url() -> Iterator[str]:
+    root = Path(os.environ["MINIWOB_ROOT"]).resolve()
+    if not (root / "miniwob" / "click-test.html").is_file():
+        raise RuntimeError(f"Invalid MINIWOB_ROOT: {root}")
+
+    class QuietHandler(SimpleHTTPRequestHandler):
+        def log_message(self, format: str, *args: Any) -> None:
+            return
+
+    handler = partial(QuietHandler, directory=root)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}/miniwob/"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def main() -> None:
     load_dotenv(ROOT / ".env")
-    if not os.getenv("MINIWOB_URL"):
-        raise RuntimeError("MINIWOB_URL is missing; copy .env.example to .env and configure it")
+    if not os.getenv("MINIWOB_ROOT"):
+        raise RuntimeError("MINIWOB_ROOT is missing; copy .env.example to .env and configure it")
 
     started_at = datetime.now(timezone.utc)
     run_id = started_at.strftime("miniwob-click-test-%Y%m%dT%H%M%SZ")
@@ -64,60 +90,66 @@ def main() -> None:
     run_dir = artifact_root / "smoke" / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
 
-    env = gym.make(TASK_ID, locale="en-US", timezone_id="UTC")
-    try:
-        observation, reset_info = env.reset(seed=TASK_SEED)
-        screenshot = observation["screenshot"]
-        Image.fromarray(screenshot).save(run_dir / "screenshot-before.png")
-
-        axtree_text = flatten_axtree_to_str(observation["axtree_object"])
-        match = re.search(
-            r"^\s*\[(\d+)\].*button", axtree_text, re.MULTILINE | re.IGNORECASE
+    with _miniwob_base_url() as base_url:
+        env = gym.make(
+            TASK_ID,
+            task_kwargs={"base_url": base_url},
+            locale="en-US",
+            timezone_id="UTC",
         )
-        if match is None:
-            raise RuntimeError("MiniWoB click-test button was not found in the A11y tree")
-        action = f'click("{match.group(1)}")'
+        try:
+            observation, reset_info = env.reset(seed=TASK_SEED)
+            screenshot = observation["screenshot"]
+            Image.fromarray(screenshot).save(run_dir / "screenshot-before.png")
 
-        observation_record = {
-            "task_id": TASK_ID,
-            "seed": TASK_SEED,
-            "goal": _json_safe(observation.get("goal")),
-            "url": _json_safe(observation.get("url")),
-            "axtree_txt": axtree_text,
-            "dom_object": _json_safe(observation.get("dom_object")),
-            "open_pages_urls": _json_safe(observation.get("open_pages_urls")),
-            "active_page_index": _json_safe(observation.get("active_page_index")),
-            "focused_element_bid": _json_safe(observation.get("focused_element_bid")),
-            "screenshot": {
-                "path": "screenshot-before.png",
-                "shape": list(screenshot.shape),
-                "dtype": str(screenshot.dtype),
-            },
-            "observation_keys": sorted(observation.keys()),
-            "reset_info": _json_safe(reset_info),
-        }
-        (run_dir / "observation.json").write_text(
-            json.dumps(observation_record, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        (run_dir / "action.json").write_text(
-            json.dumps({"action": action}, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+            axtree_text = flatten_axtree_to_str(observation["axtree_object"])
+            match = re.search(
+                r"^\s*\[(\d+)\].*button", axtree_text, re.MULTILINE | re.IGNORECASE
+            )
+            if match is None:
+                raise RuntimeError("MiniWoB click-test button was not found in the A11y tree")
+            action = f'click("{match.group(1)}")'
 
-        next_observation, reward, terminated, truncated, step_info = env.step(action)
-        Image.fromarray(next_observation["screenshot"]).save(run_dir / "screenshot-after.png")
+            observation_record = {
+                "task_id": TASK_ID,
+                "seed": TASK_SEED,
+                "goal": _json_safe(observation.get("goal")),
+                "url": _json_safe(observation.get("url")),
+                "axtree_txt": axtree_text,
+                "dom_object": _json_safe(observation.get("dom_object")),
+                "open_pages_urls": _json_safe(observation.get("open_pages_urls")),
+                "active_page_index": _json_safe(observation.get("active_page_index")),
+                "focused_element_bid": _json_safe(observation.get("focused_element_bid")),
+                "screenshot": {
+                    "path": "screenshot-before.png",
+                    "shape": list(screenshot.shape),
+                    "dtype": str(screenshot.dtype),
+                },
+                "observation_keys": sorted(observation.keys()),
+                "reset_info": _json_safe(reset_info),
+            }
+            (run_dir / "observation.json").write_text(
+                json.dumps(observation_record, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            (run_dir / "action.json").write_text(
+                json.dumps({"action": action}, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
 
-        result = {
-            "reward": float(reward),
-            "terminated": bool(terminated),
-            "truncated": bool(truncated),
-            "step_info": _json_safe(step_info),
-            "screenshot_after": "screenshot-after.png",
-        }
-        (run_dir / "result.json").write_text(
-            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-    finally:
-        env.close()
+            next_observation, reward, terminated, truncated, step_info = env.step(action)
+            Image.fromarray(next_observation["screenshot"]).save(run_dir / "screenshot-after.png")
+
+            result = {
+                "reward": float(reward),
+                "terminated": bool(terminated),
+                "truncated": bool(truncated),
+                "step_info": _json_safe(step_info),
+                "screenshot_after": "screenshot-after.png",
+            }
+            (run_dir / "result.json").write_text(
+                json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        finally:
+            env.close()
 
     finished_at = datetime.now(timezone.utc)
     manifest = {

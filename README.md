@@ -17,7 +17,7 @@ git clone https://github.com/Farama-Foundation/miniwob-plusplus.git .benchmarks/
 git -C .benchmarks/miniwob-plusplus checkout 7fd85d71a4b60325c6585396ec4f48377d049838
 
 cp .env.example .env
-# 设置 .env 中的 MINIWOB_URL 和可选的 DASHSCOPE_API_KEY
+# 设置 .env 中的 MINIWOB_ROOT 和可选的 DASHSCOPE_API_KEY
 .tools/uv run python scripts/run_miniwob_smoke.py
 ```
 
