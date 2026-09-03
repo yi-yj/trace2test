@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -99,6 +100,7 @@ def main() -> None:
         )
         try:
             observation, reset_info = env.reset(seed=TASK_SEED)
+            chromium_version = env.unwrapped.browser.version
             screenshot = observation["screenshot"]
             Image.fromarray(screenshot).save(run_dir / "screenshot-before.png")
 
@@ -161,7 +163,10 @@ def main() -> None:
         "agent": {"type": "deterministic-oracle", "action": action},
         "model": {"provider": "none", "id": None, "reason": "environment smoke test"},
         "environment": {
-            "browsergym": "0.14.3",
+            "browsergym_core": version("browsergym-core"),
+            "browsergym_miniwob": version("browsergym-miniwob"),
+            "playwright": version("playwright"),
+            "chromium": chromium_version,
             "miniwob_commit": "7fd85d71a4b60325c6585396ec4f48377d049838",
             "python": platform.python_version(),
             "platform": platform.platform(),
