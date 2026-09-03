@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from scripts.list_miniwob_tasks import collect_tasks
-from scripts.run_qwen_miniwob import _extract_click_tool_call
+from scripts.run_qwen_miniwob import _extract_click_tool_call, _parse_args
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,3 +53,15 @@ def test_qwen_click_tool_call_is_validated() -> None:
         "name": "click",
         "bid": "13",
     }
+
+
+def test_qwen_visualization_arguments() -> None:
+    defaults = _parse_args([])
+    assert defaults.headed is False
+    assert defaults.slow_mo == 1000
+    assert defaults.no_pause is False
+
+    visual = _parse_args(["--headed", "--slow-mo", "250", "--no-pause"])
+    assert visual.headed is True
+    assert visual.slow_mo == 250
+    assert visual.no_pause is True

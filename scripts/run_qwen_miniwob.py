@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import base64
 import hashlib
 import io
@@ -15,7 +16,7 @@ import urllib.request
 from datetime import datetime, timezone
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import browsergym.miniwob  # noqa: F401 - registers MiniWoB environments
 import gymnasium as gym
@@ -53,6 +54,31 @@ CLICK_TOOL = {
         },
     },
 }
+
+
+def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--headed",
+        action="store_true",
+        help="Show the Chromium window through WSLg instead of running headless.",
+    )
+    parser.add_argument(
+        "--slow-mo",
+        type=int,
+        default=1000,
+        metavar="MS",
+        help="Delay browser operations by this many milliseconds in headed mode (default: 1000).",
+    )
+    parser.add_argument(
+        "--no-pause",
+        action="store_true",
+        help="Do not wait for Enter before closing Chromium in headed mode.",
+    )
+    args = parser.parse_args(argv)
+    if args.slow_mo < 0:
+        parser.error("--slow-mo must be zero or greater")
+    return args
 
 
 def _git_commit() -> str:
@@ -136,6 +162,7 @@ def _safe_model_response(response: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> None:
+    args = _parse_args()
     load_dotenv(ROOT / ".env")
     api_key = os.getenv("DASHSCOPE_API_KEY", "").strip()
     base_url = os.getenv("DASHSCOPE_BASE_URL", "").rstrip("/")
@@ -164,6 +191,8 @@ def main() -> None:
             task_kwargs={"base_url": miniwob_url},
             locale="en-US",
             timezone_id="UTC",
+            headless=not args.headed,
+            slow_mo=args.slow_mo if args.headed else None,
         )
         try:
             observation, reset_info = env.reset(seed=TASK_SEED)
@@ -265,6 +294,11 @@ def main() -> None:
                 json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
             )
         finally:
+            if args.headed and not args.no_pause:
+                try:
+                    input("浏览器运行结束，按 Enter 关闭 Chromium...")
+                except EOFError:
+                    print("标准输入不可用，正在关闭 Chromium。")
             env.close()
 
     finished_at = datetime.now(timezone.utc)
@@ -297,6 +331,8 @@ def main() -> None:
             "viewport": [int(screenshot.shape[1]), int(screenshot.shape[0])],
             "locale": "en-US",
             "timezone": "UTC",
+            "headed": args.headed,
+            "slow_mo_ms": args.slow_mo if args.headed else 0,
         },
         "limits": {"max_steps": 1, "timeout_seconds": timeout},
         "dependencies": {

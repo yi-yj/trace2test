@@ -33,6 +33,19 @@ cp .env.example .env
 
 Qwen 将同时读取任务文本、A11y Tree 和截图，并通过受约束的 `click(bid)` tool call 操作页面。脱敏后的模型请求、响应、token usage、动作、reward、截图及 manifest 保存在 `artifacts/qwen/<run-id>/`。
 
+通过 WSLg 实时显示 Chromium，并将操作放慢到每步 1 秒：
+
+```bash
+.tools/uv run python -m scripts.run_qwen_miniwob --headed
+```
+
+可视化模式在成功或失败后都会等待输入 Enter，再关闭浏览器。可用 `--slow-mo 2000` 调整延迟；自动化场景可加 `--no-pause` 禁止等待：
+
+```bash
+.tools/uv run python -m scripts.run_qwen_miniwob --headed --slow-mo 2000
+.tools/uv run python -m scripts.run_qwen_miniwob --headed --no-pause
+```
+
 默认固定使用 `qwen3-vl-plus-2025-12-19`。如果本机的 HTTPS 代理无法访问百炼，可在 `.env` 中设置 `DASHSCOPE_BYPASS_PROXY=true`。如果返回 `AllocationQuota.FreeTierOnly`，需要在百炼控制台增加余额或关闭“仅使用免费额度”后重试。
 
 ## Inspect the MiniWoB dataset
