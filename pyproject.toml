@@ -1,0 +1,18 @@
+[project]
+name = "tracetotest"
+version = "0.1.0"
+description = "Continuous evaluation infrastructure for Web/GUI agents"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "browsergym-miniwob==0.14.3",
+    "pillow>=11.0,<13",
+    "python-dotenv>=1.0,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0,<10",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
