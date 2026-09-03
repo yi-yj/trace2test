@@ -74,7 +74,13 @@ def _png_data_url(screenshot: Any) -> tuple[str, bytes]:
     return f"data:image/png;base64,{encoded}", png
 
 
-def _post_json(url: str, api_key: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+def _post_json(
+    url: str,
+    api_key: str,
+    payload: dict[str, Any],
+    timeout: float,
+    bypass_proxy: bool,
+) -> dict[str, Any]:
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
@@ -85,7 +91,10 @@ def _post_json(url: str, api_key: str, payload: dict[str, Any], timeout: float) 
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}) if bypass_proxy else urllib.request.ProxyHandler()
+        )
+        with opener.open(request, timeout=timeout) as response:
             return json.load(response)
     except urllib.error.HTTPError as error:
         body = error.read().decode("utf-8", errors="replace")
@@ -133,6 +142,7 @@ def main() -> None:
     model = os.getenv("QWEN_VISION_MODEL", "qwen3-vl-plus")
     temperature = float(os.getenv("QWEN_TEMPERATURE", "0"))
     timeout = float(os.getenv("QWEN_TIMEOUT_SECONDS", "120"))
+    bypass_proxy = os.getenv("DASHSCOPE_BYPASS_PROXY", "false").casefold() == "true"
     if not api_key:
         raise RuntimeError("DASHSCOPE_API_KEY is not configured in .env")
     if not base_url.startswith("https://"):
@@ -186,7 +196,11 @@ def main() -> None:
                 "enable_thinking": False,
             }
             response = _post_json(
-                f"{base_url}/chat/completions", api_key=api_key, payload=payload, timeout=timeout
+                f"{base_url}/chat/completions",
+                api_key=api_key,
+                payload=payload,
+                timeout=timeout,
+                bypass_proxy=bypass_proxy,
             )
             tool_call = _extract_click_tool_call(response, valid_bids)
             action = f'click({json.dumps(tool_call["bid"])})'
@@ -270,6 +284,7 @@ def main() -> None:
             "prompt_version": PROMPT_VERSION,
             "prompt_sha256": prompt_sha256,
             "usage": safe_response.get("usage", {}),
+            "proxy_bypassed": bypass_proxy,
         },
         "environment": {
             "browsergym_core": version("browsergym-core"),
