@@ -59,14 +59,24 @@ def test_qwen_visualization_arguments() -> None:
     defaults = _parse_args([])
     assert defaults.headed is False
     assert defaults.slow_mo == 1000
+    assert defaults.click_display_ms == 450
     assert defaults.no_pause is False
     assert defaults.no_virtual_cursor is False
 
     visual = _parse_args(
-        ["--headed", "--slow-mo", "250", "--no-pause", "--no-virtual-cursor"]
+        [
+            "--headed",
+            "--slow-mo",
+            "250",
+            "--click-display-ms",
+            "300",
+            "--no-pause",
+            "--no-virtual-cursor",
+        ]
     )
     assert visual.headed is True
     assert visual.slow_mo == 250
+    assert visual.click_display_ms == 300
     assert visual.no_pause is True
     assert visual.no_virtual_cursor is True
 

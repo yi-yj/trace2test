@@ -11,6 +11,7 @@ import os
 import platform
 import re
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -74,7 +75,14 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=int,
         default=1000,
         metavar="MS",
-        help="Delay browser operations by this many milliseconds in headed mode (default: 1000).",
+        help="Pause at the target before clicking in headed mode (default: 1000).",
+    )
+    parser.add_argument(
+        "--click-display-ms",
+        type=int,
+        default=450,
+        metavar="MS",
+        help="Show the red CLICK state for this many milliseconds (default: 450).",
     )
     parser.add_argument(
         "--no-pause",
@@ -87,8 +95,8 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Hide the colored virtual cursor overlay in headed mode.",
     )
     args = parser.parse_args(argv)
-    if args.slow_mo < 0:
-        parser.error("--slow-mo must be zero or greater")
+    if args.slow_mo < 0 or args.click_display_ms < 0:
+        parser.error("visualization delays must be zero or greater")
     return args
 
 
@@ -204,7 +212,7 @@ def main() -> None:
             locale="en-US",
             timezone_id="UTC",
             headless=not args.headed,
-            slow_mo=args.slow_mo if args.headed else None,
+            slow_mo=None,
         )
         try:
             observation, reset_info = env.reset(seed=TASK_SEED)
@@ -253,9 +261,11 @@ def main() -> None:
                     env.unwrapped.page, tool_call["bid"], duration_ms=700
                 )
                 env.unwrapped.page.screenshot(path=run_dir / "virtual-cursor-idle.png")
+                time.sleep(args.slow_mo / 1000)
                 set_virtual_cursor_pressed(env.unwrapped.page, True)
-                env.unwrapped.page.wait_for_timeout(350)
+                time.sleep(args.click_display_ms / 1000)
                 env.unwrapped.page.screenshot(path=run_dir / "virtual-cursor-click.png")
+                set_virtual_cursor_pressed(env.unwrapped.page, False)
 
             request_record = {
                 "model": model,
@@ -313,8 +323,6 @@ def main() -> None:
 
             next_observation, reward, terminated, truncated, step_info = env.step(action)
             if cursor_enabled:
-                set_virtual_cursor_pressed(env.unwrapped.page, False)
-                env.unwrapped.page.wait_for_timeout(350)
                 env.unwrapped.page.screenshot(path=run_dir / "screenshot-after.png")
             else:
                 Image.fromarray(next_observation["screenshot"]).save(
@@ -375,7 +383,8 @@ def main() -> None:
             "locale": "en-US",
             "timezone": "UTC",
             "headed": args.headed,
-            "slow_mo_ms": args.slow_mo if args.headed else 0,
+            "action_preview_delay_ms": args.slow_mo if args.headed else 0,
+            "click_display_ms": args.click_display_ms if cursor_enabled else 0,
             "virtual_cursor": cursor_enabled,
         },
         "limits": {"max_steps": 1, "timeout_seconds": timeout},

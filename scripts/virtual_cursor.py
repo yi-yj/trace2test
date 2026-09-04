@@ -87,22 +87,27 @@ _INSTALL_CLOSE_CONTROL_SCRIPT = r"""
 () => {
   window.__tracetotestCloseRequested = false;
   if (!window.__tracetotestCloseListenerInstalled) {
-    document.addEventListener("keydown", event => {
+    const requestClose = event => {
       if (event.key !== "Enter") return;
       event.preventDefault();
       event.stopImmediatePropagation();
       window.__tracetotestCloseRequested = true;
       const hint = document.getElementById("__tracetotest_close_hint");
-      if (hint) hint.textContent = "正在关闭 Chromium…";
-    }, true);
+      if (hint) hint.textContent = "Closing Chromium...";
+    };
+    window.addEventListener("keydown", requestClose, true);
+    window.addEventListener("keypress", requestClose, true);
+    window.addEventListener("keyup", requestClose, true);
     window.__tracetotestCloseListenerInstalled = true;
   }
+
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 
   if (document.getElementById("__tracetotest_close_hint")) return;
   const hint = document.createElement("tracetotest-close-hint");
   hint.id = "__tracetotest_close_hint";
   hint.setAttribute("aria-hidden", "true");
-  hint.textContent = "本次单场景已结束 · 在浏览器或终端按 Enter 关闭";
+  hint.textContent = "Single scenario complete - Press Enter here or in terminal to close";
   hint.style.cssText = [
     "position:fixed", "left:50%", "bottom:18px", "transform:translateX(-50%)",
     "z-index:2147483647", "pointer-events:none", "padding:8px 14px",
@@ -140,9 +145,9 @@ def wait_for_visual_close(page: Any) -> str:
 
     def wait_for_terminal_enter() -> None:
         try:
-            input("本次单场景已结束；在浏览器或终端按 Enter 关闭 Chromium...")
+            input("Single scenario complete; press Enter here or in Chromium to close...")
         except EOFError:
-            print("标准输入不可用；请在浏览器窗口内按 Enter。")
+            print("Terminal input is unavailable; press Enter in Chromium to close.")
             return
         terminal_enter.set()
 
