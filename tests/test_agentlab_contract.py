@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from scripts.run_agentlab_miniwob import DEFAULT_CONFIG, _load_agent_config, _parse_args, _task_id
+from tracetotest.agentlab_qwen import QwenLiteLLMModelArgs
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,3 +26,9 @@ def test_agentlab_runner_records_raw_and_readable_traces() -> None:
     for artifact in ("step_*.pkl.gz", "trace.json", "manifest.json", "screenshot_step_"):
         assert artifact in source
 
+
+def test_qwen_model_args_do_not_persist_api_key() -> None:
+    args = QwenLiteLLMModelArgs(
+        model_name="openai/qwen-test", base_url="https://example.test/v1", api_key=None
+    )
+    assert args.api_key is None

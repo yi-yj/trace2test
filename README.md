@@ -19,6 +19,7 @@ Web/GUI Agent 轨迹回放、故障聚类与回归测试平台。
 ```
 
 原始 AgentLab 轨迹、可读 `trace.json`、每步截图、reward、版本清单和 manifest 保存在 `artifacts/agentlab/<experiment>/`。配置见 `configs/agents/`。
+LiteLLM 价格表未收录的 Qwen 型号会保留 token 用量，并将 `effective_cost` 记为 `0`，不影响动作执行。
 
 ## MiniWoB smoke test
 

@@ -110,7 +110,7 @@ def _make_agent_args(config: dict[str, Any], model: str, base_url: str):
     from copy import deepcopy
 
     from agentlab.agents.tool_use_agent import DEFAULT_PROMPT_CONFIG, ToolUseAgentArgs
-    from agentlab.llm.litellm_api import LiteLLMModelArgs
+    from tracetotest.agentlab_qwen import QwenLiteLLMModelArgs
 
     prompt_config = deepcopy(DEFAULT_PROMPT_CONFIG)
     obs = config["observation"]
@@ -123,7 +123,7 @@ def _make_agent_args(config: dict[str, Any], model: str, base_url: str):
     prompt_config.summarizer.do_summary = False
 
     provider_model = model if "/" in model else f"openai/{model}"
-    model_args = LiteLLMModelArgs(
+    model_args = QwenLiteLLMModelArgs(
         model_name=provider_model,
         base_url=base_url,
         api_key=None,
@@ -226,6 +226,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         "task_seed": args.seed,
         "model": model,
         "provider_model": provider_model,
+        "pricing": {
+            "source": "litellm",
+            "unknown_model_fallback": "effective_cost=0",
+        },
         "config": config,
         "git": _git_state(),
         "started_at": started_at.isoformat(),
@@ -247,4 +251,3 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-
