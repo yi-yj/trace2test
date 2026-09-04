@@ -2,9 +2,27 @@
 
 Web/GUI Agent 轨迹回放、故障聚类与回归测试平台。
 
+## AgentLab + Qwen
+
+默认使用 AgentLab `ToolUseAgent`、Qwen 原生 tool call 与视觉 + A11y Tree 观察：
+
+```bash
+.tools/uv run python -m scripts.run_agentlab_miniwob
+```
+
+更换任务、使用纯 DOM/A11y 模式，或显示浏览器：
+
+```bash
+.tools/uv run python -m scripts.run_agentlab_miniwob --task click-checkboxes
+.tools/uv run python -m scripts.run_agentlab_miniwob --config configs/agents/agentlab_qwen_a11y.yaml
+.tools/uv run python -m scripts.run_agentlab_miniwob --headed --slow-mo 500 --record-video
+```
+
+原始 AgentLab 轨迹、可读 `trace.json`、每步截图、reward、版本清单和 manifest 保存在 `artifacts/agentlab/<experiment>/`。配置见 `configs/agents/`。
+
 ## MiniWoB smoke test
 
-项目使用 Python 3.11、BrowserGym MiniWoB 0.14.3 和固定版本的 MiniWoB++：
+项目使用 Python 3.11、AgentLab 0.4.2、BrowserGym 0.14.2 和固定版本的 MiniWoB++：
 
 ```bash
 export UV_CACHE_DIR="$PWD/.cache/uv"

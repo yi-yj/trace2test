@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Continuous evaluation infrastructure for Web/GUI agents"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    "browsergym-miniwob==0.14.3",
+    "agentlab==0.4.2",
+    # AgentLab 0.4.2 imports anthropic.types.Completion, removed in Anthropic 1.x.
+    "anthropic==0.62.0",
+    "browsergym==0.14.2",
+    "browsergym-miniwob==0.14.2",
     "pillow>=11.0,<13",
     "python-dotenv>=1.0,<2",
 ]

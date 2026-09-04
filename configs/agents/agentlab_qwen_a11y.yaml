@@ -1,0 +1,11 @@
+name: agentlab-qwen-a11y
+observation:
+  use_screenshot: false
+  use_axtree: true
+  use_dom: true
+  use_som: false
+action_subsets:
+  - bid
+max_new_tokens: 1024
+temperature: 0
+

@@ -1,0 +1,11 @@
+name: agentlab-qwen-vision
+observation:
+  use_screenshot: true
+  use_axtree: true
+  use_dom: false
+  use_som: false
+action_subsets:
+  - bid
+max_new_tokens: 1024
+temperature: 0
+
