@@ -86,14 +86,20 @@ _STATE_SCRIPT = r"""
 _INSTALL_CLOSE_CONTROL_SCRIPT = r"""
 () => {
   window.__tracetotestCloseRequested = false;
+  window.__tracetotestRequestClose = () => {
+    window.__tracetotestCloseRequested = true;
+    const button = document.getElementById("__tracetotest_close_hint");
+    if (button) {
+      button.textContent = "Closing Chromium...";
+      button.disabled = true;
+    }
+  };
   if (!window.__tracetotestCloseListenerInstalled) {
     const requestClose = event => {
       if (event.key !== "Enter") return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      window.__tracetotestCloseRequested = true;
-      const hint = document.getElementById("__tracetotest_close_hint");
-      if (hint) hint.textContent = "Closing Chromium...";
+      window.__tracetotestRequestClose();
     };
     window.addEventListener("keydown", requestClose, true);
     window.addEventListener("keypress", requestClose, true);
@@ -101,21 +107,23 @@ _INSTALL_CLOSE_CONTROL_SCRIPT = r"""
     window.__tracetotestCloseListenerInstalled = true;
   }
 
-  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-
-  if (document.getElementById("__tracetotest_close_hint")) return;
-  const hint = document.createElement("tracetotest-close-hint");
-  hint.id = "__tracetotest_close_hint";
-  hint.setAttribute("aria-hidden", "true");
-  hint.textContent = "Single scenario complete - Press Enter here or in terminal to close";
-  hint.style.cssText = [
+  let button = document.getElementById("__tracetotest_close_hint");
+  if (!button) {
+    button = document.createElement("button");
+    button.id = "__tracetotest_close_hint";
+    button.type = "button";
+    button.textContent = "CLOSE CHROMIUM - Press Enter or click here";
+    button.addEventListener("click", () => window.__tracetotestRequestClose());
+    button.style.cssText = [
     "position:fixed", "left:50%", "bottom:18px", "transform:translateX(-50%)",
-    "z-index:2147483647", "pointer-events:none", "padding:8px 14px",
+    "z-index:2147483647", "pointer-events:auto", "padding:8px 14px",
     "border:2px solid #00c8ff", "border-radius:8px", "background:#071d27ee",
-    "color:white", "font:700 13px/20px sans-serif", "white-space:nowrap",
-    "box-shadow:0 4px 16px #0009"
-  ].join(";");
-  document.documentElement.appendChild(hint);
+    "color:white", "font:700 13px/20px sans-serif", "white-space:nowrap", "cursor:pointer",
+    "box-shadow:0 4px 16px #0009", "outline:3px solid #ffd60a", "outline-offset:2px"
+    ].join(";");
+    document.documentElement.appendChild(button);
+  }
+  button.focus({preventScroll: true});
 }
 """
 

@@ -39,7 +39,7 @@ Qwen 将同时读取任务文本、A11y Tree 和截图，并通过受约束的 `
 .tools/uv run python -m scripts.run_qwen_miniwob --headed
 ```
 
-可视化模式会显示虚拟鼠标：蓝色 `IDLE` 表示未点击，黄色 `MOVE` 表示移动，红色 `CLICK` 与脉冲圈表示点击状态。成功或失败后，页面底部会用英文显示关闭提示（避免最小 Chromium 环境缺少中文字体）；在浏览器窗口或启动脚本的终端按 Enter 都会关闭 Chromium。这个脚本只运行一个场景，Enter 不会启动下一个场景。
+可视化模式会显示虚拟鼠标：蓝色 `IDLE` 表示未点击，黄色 `MOVE` 表示移动，红色 `CLICK` 与脉冲圈表示点击状态。成功或失败后，页面底部会显示并自动聚焦英文 `CLOSE CHROMIUM` 按钮（避免最小 Chromium 环境缺少中文字体）；可在浏览器内按 Enter、直接点击该按钮，或在启动脚本的终端按 Enter 来关闭 Chromium。这个脚本只运行一个场景，Enter 不会启动下一个场景。
 
 可用 `--slow-mo 2000` 让虚拟鼠标到达目标后停留 2 秒再点击；它不会再延迟 Enter 检测。红色点击状态默认显示 450ms，可通过 `--click-display-ms` 调整。自动化场景可加 `--no-pause` 禁止等待，也可用 `--no-virtual-cursor` 隐藏虚拟鼠标：
 
