@@ -25,6 +25,12 @@ from dotenv import load_dotenv
 from PIL import Image
 
 from scripts.run_miniwob_smoke import _json_safe, _miniwob_base_url
+from scripts.virtual_cursor import (
+    install_virtual_cursor,
+    move_virtual_cursor_to_bid,
+    set_virtual_cursor_pressed,
+    wait_for_visual_close,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,6 +80,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--no-pause",
         action="store_true",
         help="Do not wait for Enter before closing Chromium in headed mode.",
+    )
+    parser.add_argument(
+        "--no-virtual-cursor",
+        action="store_true",
+        help="Hide the colored virtual cursor overlay in headed mode.",
     )
     args = parser.parse_args(argv)
     if args.slow_mo < 0:
@@ -184,6 +195,7 @@ def main() -> None:
         artifact_root = ROOT / artifact_root
     run_dir = artifact_root / "qwen" / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
+    cursor_enabled = args.headed and not args.no_virtual_cursor
 
     with _miniwob_base_url() as miniwob_url:
         env = gym.make(
@@ -199,6 +211,8 @@ def main() -> None:
             chromium_version = env.unwrapped.browser.version
             screenshot = observation["screenshot"]
             Image.fromarray(screenshot).save(run_dir / "screenshot-before.png")
+            if cursor_enabled:
+                install_virtual_cursor(env.unwrapped.page)
             axtree_text = flatten_axtree_to_str(observation["axtree_object"])
             valid_bids = set(re.findall(r"^\s*\[([^]]+)\]", axtree_text, re.MULTILINE))
             image_url, png = _png_data_url(screenshot)
@@ -233,6 +247,15 @@ def main() -> None:
             )
             tool_call = _extract_click_tool_call(response, valid_bids)
             action = f'click({json.dumps(tool_call["bid"])})'
+            cursor_position = None
+            if cursor_enabled:
+                cursor_position = move_virtual_cursor_to_bid(
+                    env.unwrapped.page, tool_call["bid"], duration_ms=700
+                )
+                env.unwrapped.page.screenshot(path=run_dir / "virtual-cursor-idle.png")
+                set_virtual_cursor_pressed(env.unwrapped.page, True)
+                env.unwrapped.page.wait_for_timeout(350)
+                env.unwrapped.page.screenshot(path=run_dir / "virtual-cursor-click.png")
 
             request_record = {
                 "model": model,
@@ -277,28 +300,48 @@ def main() -> None:
                 json.dumps(observation_record, ensure_ascii=False, indent=2), encoding="utf-8"
             )
             (run_dir / "action.json").write_text(
-                json.dumps({"tool_call": tool_call, "browsergym_action": action}, indent=2),
+                json.dumps(
+                    {
+                        "tool_call": tool_call,
+                        "browsergym_action": action,
+                        "virtual_cursor_position": cursor_position,
+                    },
+                    indent=2,
+                ),
                 encoding="utf-8",
             )
 
             next_observation, reward, terminated, truncated, step_info = env.step(action)
-            Image.fromarray(next_observation["screenshot"]).save(run_dir / "screenshot-after.png")
+            if cursor_enabled:
+                set_virtual_cursor_pressed(env.unwrapped.page, False)
+                env.unwrapped.page.wait_for_timeout(350)
+                env.unwrapped.page.screenshot(path=run_dir / "screenshot-after.png")
+            else:
+                Image.fromarray(next_observation["screenshot"]).save(
+                    run_dir / "screenshot-after.png"
+                )
             result = {
                 "reward": float(reward),
                 "terminated": bool(terminated),
                 "truncated": bool(truncated),
                 "step_info": _json_safe(step_info),
                 "screenshot_after": "screenshot-after.png",
+                "visualization": {
+                    "virtual_cursor": cursor_enabled,
+                    "idle_screenshot": "virtual-cursor-idle.png"
+                    if cursor_enabled
+                    else None,
+                    "click_screenshot": "virtual-cursor-click.png"
+                    if cursor_enabled
+                    else None,
+                },
             }
             (run_dir / "result.json").write_text(
                 json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
             )
         finally:
             if args.headed and not args.no_pause:
-                try:
-                    input("浏览器运行结束，按 Enter 关闭 Chromium...")
-                except EOFError:
-                    print("标准输入不可用，正在关闭 Chromium。")
+                wait_for_visual_close(env.unwrapped.page)
             env.close()
 
     finished_at = datetime.now(timezone.utc)
@@ -333,6 +376,7 @@ def main() -> None:
             "timezone": "UTC",
             "headed": args.headed,
             "slow_mo_ms": args.slow_mo if args.headed else 0,
+            "virtual_cursor": cursor_enabled,
         },
         "limits": {"max_steps": 1, "timeout_seconds": timeout},
         "dependencies": {

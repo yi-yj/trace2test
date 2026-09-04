@@ -60,8 +60,16 @@ def test_qwen_visualization_arguments() -> None:
     assert defaults.headed is False
     assert defaults.slow_mo == 1000
     assert defaults.no_pause is False
+    assert defaults.no_virtual_cursor is False
 
-    visual = _parse_args(["--headed", "--slow-mo", "250", "--no-pause"])
+    visual = _parse_args(
+        ["--headed", "--slow-mo", "250", "--no-pause", "--no-virtual-cursor"]
+    )
     assert visual.headed is True
     assert visual.slow_mo == 250
     assert visual.no_pause is True
+    assert visual.no_virtual_cursor is True
+
+    source = (ROOT / "scripts/run_qwen_miniwob.py").read_text(encoding="utf-8")
+    assert "virtual-cursor-idle.png" in source
+    assert "virtual-cursor-click.png" in source

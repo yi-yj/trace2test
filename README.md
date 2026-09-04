@@ -39,11 +39,14 @@ Qwen 将同时读取任务文本、A11y Tree 和截图，并通过受约束的 `
 .tools/uv run python -m scripts.run_qwen_miniwob --headed
 ```
 
-可视化模式在成功或失败后都会等待输入 Enter，再关闭浏览器。可用 `--slow-mo 2000` 调整延迟；自动化场景可加 `--no-pause` 禁止等待：
+可视化模式会显示虚拟鼠标：蓝色 `IDLE` 表示未点击，黄色 `MOVE` 表示移动，红色 `CLICK` 与脉冲圈表示点击状态。成功或失败后，页面底部会显示关闭提示；在浏览器窗口或启动脚本的终端按 Enter 都会关闭 Chromium。这个脚本只运行一个场景，Enter 不会启动下一个场景。
+
+可用 `--slow-mo 2000` 调整浏览器操作延迟；自动化场景可加 `--no-pause` 禁止等待，也可用 `--no-virtual-cursor` 隐藏虚拟鼠标：
 
 ```bash
 .tools/uv run python -m scripts.run_qwen_miniwob --headed --slow-mo 2000
 .tools/uv run python -m scripts.run_qwen_miniwob --headed --no-pause
+.tools/uv run python -m scripts.run_qwen_miniwob --headed --no-virtual-cursor
 ```
 
 默认固定使用 `qwen3-vl-plus-2025-12-19`。如果本机的 HTTPS 代理无法访问百炼，可在 `.env` 中设置 `DASHSCOPE_BYPASS_PROXY=true`。如果返回 `AllocationQuota.FreeTierOnly`，需要在百炼控制台增加余额或关闭“仅使用免费额度”后重试。
