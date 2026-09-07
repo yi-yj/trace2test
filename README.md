@@ -44,6 +44,7 @@ cd ../..
 .venv/bin/python -m tracetotest adapt --framework browser-use --run-dir artifacts/browser-use/<run>
 ```
 
+完整操作方式见 [统一 Runner 与轨迹采集指南](docs/RUNNER_TRACE_OPERATIONS.md)，
 协议和脱敏边界见 [Trace SDK 说明](docs/TRACE_SDK.md)。
 
 ## AgentLab + Qwen
