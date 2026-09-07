@@ -26,7 +26,13 @@ def test_agentlab_a11y_config_uses_bid_actions_without_screenshot() -> None:
 
 def test_agentlab_runner_records_raw_and_readable_traces() -> None:
     source = (ROOT / "scripts/run_agentlab_miniwob.py").read_text(encoding="utf-8")
-    for artifact in ("step_*.pkl.gz", "trace.json", "manifest.json", "screenshot_step_"):
+    for artifact in (
+        "step_*.pkl.gz",
+        "trace.json",
+        "manifest.json",
+        "screenshot_step_",
+        "last_action_error",
+    ):
         assert artifact in source
 
 

@@ -158,6 +158,7 @@ def _write_readable_trace(exp_dir: Path) -> dict[str, Any]:
                     "url": _json_safe(obs.get("url")),
                     "axtree_txt": obs.get("axtree_txt"),
                     "pruned_html": obs.get("pruned_html"),
+                    "last_action_error": obs.get("last_action_error"),
                     "screenshot": f"screenshot_step_{step.step}.png"
                     if (exp_dir / f"screenshot_step_{step.step}.png").exists()
                     else None,
