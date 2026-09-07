@@ -19,6 +19,7 @@ from tracetotest.trace import (
     export_trace,
 )
 from tracetotest.trace.redaction import redact, redact_url
+from tracetotest.verification import VerificationCheck, VerificationResult
 
 
 class BrowserUseAdapter:
@@ -90,8 +91,29 @@ class BrowserUseAdapter:
         usage = manifest.get("usage") or {}
         success = bool(result.get("success"))
         status = "error" if result.get("error") else "succeeded" if success else "failed"
-        if result.get("truncated"):
+        if result.get("truncated") and not result.get("error"):
             status = "truncated"
+        failure_type = str(result.get("failure_type") or ("none" if success else "agent"))
+        if failure_type not in {"none", "agent", "environment", "verifier"}:
+            failure_type = "verifier"
+        verification = VerificationResult(
+            verifier_id="url_contains" if result.get("expected_url_contains") else "agent_result",
+            verifier_version="1.0.0",
+            task_id=str(manifest.get("task_id", "web-task")),
+            run_id=run_id,
+            passed=success,
+            score=1.0 if success else 0.0,
+            checks=[
+                VerificationCheck(
+                    name="url_contains" if result.get("expected_url_contains") else "agent_result",
+                    passed=success,
+                    expected=result.get("expected_url_contains", True),
+                    actual=result.get("final_url", result.get("agent_success")),
+                )
+            ],
+            failure_type=failure_type,
+            error=str(result.get("error") or "") or None,
+        )
         events = [
             EventRecord(
                 event_id="evt_verification",
@@ -154,10 +176,16 @@ class BrowserUseAdapter:
                 output_tokens=safe_number(usage.get("output_tokens"), int),
                 estimated_cost=safe_number(usage.get("total_cost"), float),
                 manifest_ref=manifest_ref,
+                termination_reason=(
+                    "environment_error"
+                    if failure_type == "environment"
+                    else "agent_error" if result.get("error") else "max_steps" if result.get("truncated") else "verified"
+                ),
             ),
             steps=steps,
             events=events,
             artifacts=store.records,
+            verification=verification,
         )
         export_trace(trace, canonical_dir)
         return trace

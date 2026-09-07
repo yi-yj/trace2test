@@ -188,7 +188,7 @@ def main() -> None:
     model = os.getenv("QWEN_VISION_MODEL", "qwen3-vl-plus")
     temperature = float(os.getenv("QWEN_TEMPERATURE", "0"))
     timeout = float(os.getenv("QWEN_TIMEOUT_SECONDS", "120"))
-    bypass_proxy = os.getenv("DASHSCOPE_BYPASS_PROXY", "false").casefold() == "true"
+    bypass_proxy = os.getenv("DASHSCOPE_BYPASS_PROXY", "true").casefold() == "true"
     if not api_key:
         raise RuntimeError("DASHSCOPE_API_KEY is not configured in .env")
     if not base_url.startswith("https://"):

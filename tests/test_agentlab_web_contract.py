@@ -1,6 +1,6 @@
 import pytest
 
-from scripts.run_agentlab_web import _parse_args
+from scripts.run_agentlab_web import _failure_type, _parse_args
 from scripts.capture_browser_state import _parse_args as parse_capture_args
 
 
@@ -10,6 +10,7 @@ def test_real_site_demo_has_safe_bounded_defaults() -> None:
     assert args.max_steps == 1
     assert args.expected_url_contains == "iana.org"
     assert args.no_virtual_cursor is False
+    assert args.navigation_timeout_ms == 30_000
 
 
 def test_real_site_demo_rejects_non_https_url() -> None:
@@ -29,3 +30,12 @@ def test_capture_state_uses_named_https_profile() -> None:
     assert args.name == "taobao"
     with pytest.raises(SystemExit):
         parse_capture_args(["--url", "http://example.com", "--name", "unsafe/name"])
+
+
+def test_initial_navigation_timeout_is_classified_as_environment() -> None:
+    summary = {
+        "n_steps": 0,
+        "err_msg": "EnvironmentNavigationError: Initial navigation exceeded 30000 ms",
+    }
+    assert _failure_type(summary, verifier_success=False) == "environment"
+    assert _failure_type({"n_steps": 2}, verifier_success=False) == "agent"

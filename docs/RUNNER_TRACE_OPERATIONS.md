@@ -28,6 +28,9 @@
 `scripts/run_agentlab_*.py` 等脚本保留为框架专用入口和调试工具；对外执行
 HTTPS web task 时应优先使用 `python -m tracetotest run`。
 
+真实网站初始导航默认最多等待 30 秒，可使用
+`--navigation-timeout-ms 60000` 调整；该设置不改变 Agent 自主结束的默认评测模式。
+
 ## 2. 环境准备
 
 ### 2.1 主环境
@@ -64,13 +67,20 @@ cd ../..
 ```dotenv
 DASHSCOPE_API_KEY=<local-secret>
 DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+DASHSCOPE_BYPASS_PROXY=true
+BROWSER_PROXY_ENABLED=true
+# 可选；留空时自动读取 HTTPS_PROXY/HTTP_PROXY
+BROWSER_PROXY_SERVER=
+BROWSER_PROXY_BYPASS=localhost,127.0.0.1
 QWEN_VISION_MODEL=qwen3.7-plus
 QWEN_TOOL_MODEL=qwen-plus
 ARTIFACT_STORE_PATH=./artifacts
 ```
 
 `.env` 不得提交。默认使用 `QWEN_VISION_MODEL`；传入 `--no-vision` 后改用
-`QWEN_TOOL_MODEL`。
+`QWEN_TOOL_MODEL`。`DASHSCOPE_BYPASS_PROXY` 仅控制模型 HTTP 客户端；
+`BROWSER_PROXY_ENABLED` 与 `BROWSER_PROXY_SERVER` 独立控制 Chromium。manifest 只记录
+是否配置及配置来源，不记录代理 URL 或凭据。
 
 ## 3. 运行任务
 
@@ -329,7 +339,8 @@ Adapter 输入要求：
 | --- | --- |
 | Browser Use runtime missing | 重新执行 2.2 的隔离环境 `uv sync` |
 | 找不到 Chromium | 确认 `.cache/ms-playwright` 存在，重新执行 Playwright Chromium 安装 |
-| Qwen 调用失败 | 检查 `.env` 的 key/base URL/model；代理不可达时设 `DASHSCOPE_BYPASS_PROXY=true` |
+| Qwen 调用失败 | 检查 `.env` 的 key/base URL/model 和 `DASHSCOPE_BYPASS_PROXY`；该开关只控制模型流量 |
+| 真实网站 `Page.goto` 超时 | 模型与浏览器代理已分离；检查 `BROWSER_PROXY_ENABLED`/`BROWSER_PROXY_SERVER`，必要时增大 `--navigation-timeout-ms` |
 | 任务做完但命令失败 | 检查 `manifest.json.result` 和 `expected-url-contains` 是否匹配真实最终 URL |
 | Adapter 报缺少文件 | 根据第 8 节确认框架原始文件齐全 |
 | 没有虚拟鼠标 | 确认使用 `--headed` 且未传入 `--no-virtual-cursor` |

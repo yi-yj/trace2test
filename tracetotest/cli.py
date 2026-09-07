@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 from tracetotest.adapters import AgentLabAdapter, BrowserUseAdapter
 from tracetotest.browser_fonts import configure_browser_fonts
+from tracetotest.proxy import install_browser_proxy_environment, resolve_browser_proxy
 
 ROOT = Path(__file__).resolve().parents[1]
 BROWSER_USE_RUNTIME = ROOT / "integrations/browser_use/.venv/bin/python"
@@ -37,6 +38,7 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-virtual-cursor", action="store_true")
     parser.add_argument("--cursor-move-ms", type=int, default=700)
     parser.add_argument("--click-display-ms", type=int, default=450)
+    parser.add_argument("--navigation-timeout-ms", type=int, default=30_000)
     parser.add_argument("--storage-state", type=Path)
     parser.add_argument("--no-vision", action="store_true")
 
@@ -70,8 +72,8 @@ def _validate_run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     local_http = parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost"}
     if (parsed.scheme != "https" and not local_http) or not parsed.hostname or parsed.username:
         parser.error("--start-url must be HTTPS, or HTTP on localhost, without embedded credentials")
-    if args.max_steps < 1:
-        parser.error("--max-steps must be at least 1")
+    if min(args.max_steps, args.navigation_timeout_ms) < 1:
+        parser.error("--max-steps and --navigation-timeout-ms must be positive")
     if min(args.cursor_move_ms, args.click_display_ms) < 0:
         parser.error("visualization delays must be zero or greater")
     if args.storage_state:
@@ -100,6 +102,8 @@ def _run_agentlab(args: argparse.Namespace) -> Path:
         str(args.cursor_move_ms),
         "--click-display-ms",
         str(args.click_display_ms),
+        "--navigation-timeout-ms",
+        str(args.navigation_timeout_ms),
     ]
     if args.headed:
         argv.append("--headed")
@@ -165,6 +169,8 @@ def _run_browser_use(args: argparse.Namespace) -> Path:
         str(args.cursor_move_ms),
         "--click-display-ms",
         str(args.click_display_ms),
+        "--navigation-timeout-ms",
+        str(args.navigation_timeout_ms),
     ]
     if args.headed:
         command.append("--headed")
@@ -185,7 +191,9 @@ def _run_browser_use(args: argparse.Namespace) -> Path:
     environment["PLAYWRIGHT_BROWSERS_PATH"] = str(ROOT / ".cache/ms-playwright")
     environment["PYTHONPATH"] = str(ROOT)
     environment["ANONYMIZED_TELEMETRY"] = "false"
-    if environment.get("DASHSCOPE_BYPASS_PROXY", "false").casefold() == "true":
+    browser_proxy = resolve_browser_proxy(environment)
+    install_browser_proxy_environment(environment, browser_proxy)
+    if environment.get("DASHSCOPE_BYPASS_PROXY", "true").casefold() == "true":
         for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
             environment.pop(name, None)
     completed = subprocess.run(command, cwd=ROOT, env=environment, check=False)

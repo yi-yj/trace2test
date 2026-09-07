@@ -14,6 +14,7 @@ from playwright.sync_api import sync_playwright
 
 from scripts.run_agentlab_miniwob import ROOT
 from tracetotest.browser_fonts import configure_browser_fonts
+from tracetotest.proxy import resolve_browser_proxy
 
 
 AUTH_ROOT = ROOT / ".auth"
@@ -43,7 +44,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=False)
+        proxy = resolve_browser_proxy().playwright()
+        launch_options = {"headless": False}
+        if proxy:
+            launch_options["proxy"] = proxy
+        browser = playwright.chromium.launch(**launch_options)
         context = browser.new_context(locale="zh-CN", timezone_id="Asia/Shanghai")
         page = context.new_page()
         try:
@@ -77,4 +82,3 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -114,6 +114,7 @@ def test_agentlab_adapter_emits_canonical_trace(tmp_path) -> None:
     assert trace.steps[0].action.type == "click"
     assert trace.steps[0].action.target_element_id == "7"
     assert "secret" not in trace.steps[0].observation.url
+    assert trace.verification and trace.verification.passed
     _assert_artifacts(trace, run_dir / "canonical")
 
 
@@ -160,9 +161,42 @@ def test_browser_use_adapter_emits_same_schema_and_events(tmp_path) -> None:
     trace = BrowserUseAdapter().convert(run_dir)
     assert trace.run.framework == "browser-use"
     assert trace.steps[0].action.type == "click"
+    assert trace.verification and trace.verification.passed
     assert {event.event_type for event in trace.events} == {
         "verification",
         "network_request",
         "file_artifact",
     }
     _assert_artifacts(trace, run_dir / "canonical")
+
+
+def test_agentlab_navigation_failure_is_canonical_environment_failure(tmp_path) -> None:
+    run_dir = tmp_path / "agentlab-error"
+    run_dir.mkdir()
+    (run_dir / "trace.json").write_text("[]", encoding="utf-8")
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "task_id": "real-site",
+                "started_at": "2026-01-01T00:00:00Z",
+                "finished_at": "2026-01-01T00:00:30Z",
+                "summary": {
+                    "n_steps": 0,
+                    "err_msg": "EnvironmentNavigationError: navigation timed out",
+                },
+                "verifier": {
+                    "type": "url_contains",
+                    "version": "1.0.0",
+                    "expected": "/checkboxes",
+                    "actual": "",
+                    "success": False,
+                    "error": "EnvironmentNavigationError: navigation timed out",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    trace = AgentLabAdapter().convert(run_dir)
+    assert trace.run.status == "error"
+    assert trace.run.termination_reason == "environment_error"
+    assert trace.verification and trace.verification.failure_type == "environment"

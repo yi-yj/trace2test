@@ -24,6 +24,9 @@ from scripts.run_agentlab_miniwob import (
     _write_readable_trace,
 )
 from tracetotest.browser_fonts import configure_browser_fonts
+from tracetotest.browser_tasks import TASK_ID as WEB_TASK_ID
+from tracetotest.browser_tasks import ensure_browser_tasks_registered
+from tracetotest.proxy import browser_proxy_environment, resolve_browser_proxy
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -50,12 +53,13 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--no-virtual-cursor", action="store_true")
     parser.add_argument("--cursor-move-ms", type=int, default=700, metavar="MS")
     parser.add_argument("--click-display-ms", type=int, default=450, metavar="MS")
+    parser.add_argument("--navigation-timeout-ms", type=int, default=30_000, metavar="MS")
     args = parser.parse_args(argv)
     parsed_url = urlparse(args.start_url)
     if parsed_url.scheme != "https" or not parsed_url.hostname or parsed_url.username:
         parser.error("--start-url must be a public HTTPS URL without embedded credentials")
-    if args.max_steps < 1:
-        parser.error("--max-steps must be at least 1")
+    if min(args.max_steps, args.navigation_timeout_ms) < 1:
+        parser.error("--max-steps and --navigation-timeout-ms must be positive")
     if min(args.slow_mo, args.cursor_move_ms, args.click_display_ms) < 0:
         parser.error("visualization delays must be zero or greater")
     if args.storage_state is not None:
@@ -70,6 +74,18 @@ def _last_url(exp_dir: Path) -> str:
     trace = json.loads((exp_dir / "trace.json").read_text(encoding="utf-8"))
     urls = [item["observation"].get("url") for item in trace]
     return next((str(url) for url in reversed(urls) if url), "")
+
+
+def _failure_type(summary: dict, verifier_success: bool) -> str:
+    error = str(summary.get("err_msg") or "")
+    if error and (
+        "EnvironmentNavigationError" in error
+        or (not summary.get("n_steps") and "Page.goto" in error and "TimeoutError" in error)
+    ):
+        return "environment"
+    if error or not verifier_success:
+        return "agent"
+    return "none"
 
 
 def main(argv: Sequence[str] | None = None) -> Path:
@@ -88,6 +104,8 @@ def main(argv: Sequence[str] | None = None) -> Path:
     model_env = "QWEN_VISION_MODEL" if uses_vision else "QWEN_TOOL_MODEL"
     model = os.getenv(model_env, "qwen3-vl-plus" if uses_vision else "qwen-plus")
     agent_args, provider_model = _make_agent_args(config, model, base_url)
+    browser_proxy = resolve_browser_proxy()
+    ensure_browser_tasks_registered()
 
     from agentlab.experiments.loop import ExpArgs
     from tracetotest.agentlab_visualization import VisualEnvArgs
@@ -98,21 +116,26 @@ def main(argv: Sequence[str] | None = None) -> Path:
         artifact_root = ROOT / artifact_root
     exp_root = artifact_root / "agentlab-web"
     exp_root.mkdir(parents=True, exist_ok=True)
-    bypass_proxy = os.getenv("DASHSCOPE_BYPASS_PROXY", "false").casefold() == "true"
+    bypass_proxy = os.getenv("DASHSCOPE_BYPASS_PROXY", "true").casefold() == "true"
 
-    with _model_environment(api_key, bypass_proxy):
+    with browser_proxy_environment(browser_proxy), _model_environment(api_key, bypass_proxy):
         env_args = VisualEnvArgs(
-            task_name="openended",
+            task_name=WEB_TASK_ID,
             task_seed=args.seed,
             max_steps=args.max_steps,
             headless=not args.headed,
             record_video=args.record_video,
             slow_mo=args.slow_mo or None,
-            task_kwargs={"start_url": args.start_url, "goal": args.goal},
+            task_kwargs={
+                "start_url": args.start_url,
+                "goal": args.goal,
+                "navigation_timeout_ms": args.navigation_timeout_ms,
+            },
             storage_state=str(args.storage_state) if args.storage_state else None,
             virtual_cursor=args.headed and not args.no_virtual_cursor,
             cursor_move_duration_ms=args.cursor_move_ms,
             click_display_ms=args.click_display_ms,
+            browser_proxy_enabled=browser_proxy.configured,
         )
         experiment = ExpArgs(agent_args=agent_args, env_args=env_args, save_screenshot=True)
         experiment.prepare(exp_root)
@@ -121,11 +144,15 @@ def main(argv: Sequence[str] | None = None) -> Path:
     exp_dir = Path(experiment.exp_dir)
     summary = _write_readable_trace(exp_dir)
     final_url = _last_url(exp_dir)
+    verifier_success = args.expected_url_contains.casefold() in final_url.casefold()
     verifier = {
         "type": "url_contains",
+        "version": "1.0.0",
         "expected": args.expected_url_contains,
         "actual": final_url,
-        "success": args.expected_url_contains.casefold() in final_url.casefold(),
+        "success": verifier_success,
+        "failure_type": _failure_type(summary, verifier_success),
+        "error": summary.get("err_msg"),
         "note": "BrowserGym openended reward is always 0; use this deterministic verifier.",
     }
     (exp_dir / "verification.json").write_text(
@@ -146,6 +173,11 @@ def main(argv: Sequence[str] | None = None) -> Path:
         "dependency_locks": {"uv_lock_sha256": _sha256_file(ROOT / "uv.lock")},
         "dataset": {"name": "live-https-site", "versioned": False},
         "browser_fonts": font_config,
+        "network": {
+            "model_bypass_proxy": bypass_proxy,
+            "browser_proxy": browser_proxy.safe_summary(),
+            "navigation_timeout_ms": args.navigation_timeout_ms,
+        },
         "authentication": {
             "storage_state": args.storage_state.name if args.storage_state else None,
             "state_contents_recorded": False,

@@ -20,6 +20,19 @@ from tracetotest.trace import (
     export_trace,
 )
 from tracetotest.trace.redaction import redact, redact_url
+from tracetotest.verification import VerificationCheck, VerificationResult
+
+
+def _failure_type(verifier: dict[str, Any], summary: dict[str, Any], succeeded: bool) -> str:
+    explicit = str(verifier.get("failure_type") or "")
+    if explicit in {"none", "agent", "environment", "verifier"}:
+        return explicit
+    error = str(summary.get("err_msg") or "")
+    if "EnvironmentNavigationError" in error or (
+        not summary.get("n_steps") and "Page.goto" in error and "TimeoutError" in error
+    ):
+        return "environment"
+    return "none" if succeeded else "agent"
 
 
 class AgentLabAdapter:
@@ -94,6 +107,29 @@ class AgentLabAdapter:
         truncated = bool(summary.get("truncated"))
         succeeded = bool(verifier.get("success")) if verifier else float(summary.get("cum_reward", 0) or 0) > 0
         status = "error" if error else "truncated" if truncated else "succeeded" if succeeded else "failed"
+        failure_type = _failure_type(verifier, summary, succeeded)
+        verification = (
+            VerificationResult(
+                verifier_id=str(verifier.get("type") or "agentlab-result"),
+                verifier_version=str(verifier.get("version") or "1.0.0"),
+                task_id=str(manifest.get("task_id", "unknown")),
+                run_id=run_id,
+                passed=succeeded,
+                score=1.0 if succeeded else 0.0,
+                checks=[
+                    VerificationCheck(
+                        name=str(verifier.get("type") or "task_success"),
+                        passed=succeeded,
+                        expected=verifier.get("expected", True),
+                        actual=verifier.get("actual", succeeded),
+                    )
+                ],
+                failure_type=failure_type,
+                error=str(verifier.get("error") or "") or None,
+            )
+            if verifier
+            else None
+        )
         trace = CanonicalTrace(
             run=RunRecord(
                 run_id=run_id,
@@ -110,6 +146,11 @@ class AgentLabAdapter:
                 output_tokens=int(summary.get("stats.cum_output_tokens", 0) or 0),
                 estimated_cost=float(summary.get("stats.cum_cost", 0) or 0),
                 manifest_ref=manifest_ref,
+                termination_reason=(
+                    "environment_error"
+                    if failure_type == "environment"
+                    else "agent_error" if error else "max_steps" if truncated else "verified"
+                ),
             ),
             steps=steps,
             events=[
@@ -123,6 +164,7 @@ class AgentLabAdapter:
                 )
             ],
             artifacts=store.records,
+            verification=verification,
         )
         export_trace(trace, canonical_dir)
         return trace

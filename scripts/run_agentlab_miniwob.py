@@ -218,7 +218,7 @@ def main(argv: Sequence[str] | None = None) -> Path:
         artifact_root = ROOT / artifact_root
     exp_root = artifact_root / "agentlab"
     exp_root.mkdir(parents=True, exist_ok=True)
-    bypass_proxy = os.getenv("DASHSCOPE_BYPASS_PROXY", "false").casefold() == "true"
+    bypass_proxy = os.getenv("DASHSCOPE_BYPASS_PROXY", "true").casefold() == "true"
 
     with _miniwob_base_url() as miniwob_url, _model_environment(api_key, bypass_proxy):
         env_args = VisualEnvArgs(

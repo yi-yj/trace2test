@@ -21,6 +21,7 @@ from tracetotest.cursor_overlay import (
     SET_CURSOR_STATE_SCRIPT,
 )
 from tracetotest.trace.redaction import redact
+from tracetotest.proxy import runtime_browser_proxy, runtime_browser_proxy_summary
 
 CLICK_ACTIONS = frozenset({"click"})
 
@@ -41,10 +42,14 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--no-virtual-cursor", action="store_true")
     parser.add_argument("--cursor-move-ms", type=int, default=700)
     parser.add_argument("--click-display-ms", type=int, default=450)
+    parser.add_argument("--navigation-timeout-ms", type=int, default=30_000)
     parser.add_argument("--storage-state", type=Path)
     parser.add_argument("--browser-executable", type=Path)
     parser.add_argument("--no-vision", action="store_true")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if min(args.max_steps, args.navigation_timeout_ms) < 1:
+        parser.error("--max-steps and --navigation-timeout-ms must be positive")
+    return args
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -87,6 +92,7 @@ def _sha256(path: Path) -> str | None:
 async def _run(args: argparse.Namespace) -> bool:
     # Browser Use initializes user config during import, so the parent command
     # points XDG_CONFIG_HOME/BROWSER_USE_CONFIG_DIR at the repository cache first.
+    os.environ["BROWSER_USE_ACTION_TIMEOUT_S"] = str(args.navigation_timeout_ms / 1000)
     from browser_use import Agent, Browser
     from browser_use.llm.openai.like import ChatOpenAILike
 
@@ -112,6 +118,9 @@ async def _run(args: argparse.Namespace) -> bool:
         browser_kwargs["storage_state"] = str(args.storage_state.resolve())
     if args.record_video:
         browser_kwargs["record_video_dir"] = str((run_dir / "video").resolve())
+    browser_proxy = runtime_browser_proxy()
+    if browser_proxy:
+        browser_kwargs["proxy"] = browser_proxy
     browser = Browser(**browser_kwargs)
 
     async def on_new_step(state: Any, output: Any, step_number: int) -> None:
@@ -221,6 +230,11 @@ async def _run(args: argparse.Namespace) -> bool:
     expected = args.expected_url_contains.strip()
     agent_success = bool(history and history.is_successful())
     success = expected.casefold() in final_url.casefold() if expected else agent_success
+    failure_type = (
+        "environment"
+        if fatal_error and not records
+        else "agent" if fatal_error or not success else "none"
+    )
     usage_raw = history.usage.model_dump() if history and history.usage else {}
     usage = {
         "input_tokens": usage_raw.get("total_prompt_tokens", 0),
@@ -246,6 +260,12 @@ async def _run(args: argparse.Namespace) -> bool:
         "model": args.model,
         "seed": args.seed,
         "budget": {"max_steps": args.max_steps},
+        "network": {
+            "model_bypass_proxy": os.getenv("DASHSCOPE_BYPASS_PROXY", "true").casefold()
+            == "true",
+            "browser_proxy": runtime_browser_proxy_summary(),
+            "navigation_timeout_ms": args.navigation_timeout_ms,
+        },
         "visualization": {
             "headed": args.headed,
             "record_video": args.record_video,
@@ -269,6 +289,7 @@ async def _run(args: argparse.Namespace) -> bool:
             "final_url": final_url,
             "expected_url_contains": expected or None,
             "error": fatal_error,
+            "failure_type": failure_type,
             "truncated": bool(history and not history.is_done() and len(records) >= args.max_steps),
         },
         "privacy": {

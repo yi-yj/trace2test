@@ -88,6 +88,9 @@ LiteLLM 价格表未收录的 Qwen 型号只输出一条简短 warning，保留 
 .venv/bin/python -m scripts.run_agentlab_web --headed --record-video
 ```
 
+初始页面导航默认超时为 30 秒，可用 `--navigation-timeout-ms` 调整。导航失败会作为
+`environment` failure 写入 canonical `VerificationResult`，不计为 Agent 任务失败。
+
 产物保存在 `artifacts/agentlab-web/<experiment>/`。不要将该入口用于登录、下单、发布、删除或其他会改变外部状态的操作。
 
 ### 中文字体与登录状态
@@ -164,7 +167,9 @@ Qwen 将同时读取任务文本、A11y Tree 和截图，并通过受约束的 `
 .tools/uv run python -m scripts.run_qwen_miniwob --headed --no-virtual-cursor
 ```
 
-默认固定使用 `qwen3-vl-plus-2025-12-19`。如果本机的 HTTPS 代理无法访问百炼，可在 `.env` 中设置 `DASHSCOPE_BYPASS_PROXY=true`。如果返回 `AllocationQuota.FreeTierOnly`，需要在百炼控制台增加余额或关闭“仅使用免费额度”后重试。
+默认固定使用 `qwen3-vl-plus-2025-12-19`。模型流量默认绕过系统代理，
+浏览器流量默认使用 `BROWSER_PROXY_SERVER` 或现有 `HTTPS_PROXY/HTTP_PROXY`；
+两者可独立配置。如果返回 `AllocationQuota.FreeTierOnly`，需要在百炼控制台增加余额或关闭“仅使用免费额度”后重试。
 
 ## Inspect the MiniWoB dataset
 
