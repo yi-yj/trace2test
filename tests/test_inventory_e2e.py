@@ -4,6 +4,7 @@ from urllib.request import urlopen
 
 from apps.inventory_demo import InventoryDemoServer, InventoryStore
 from scripts.run_inventory_e2e import run
+from tracetotest.cli import _parser
 from tracetotest.tasks import TaskSpec
 from tracetotest.trace import load_trace
 from tracetotest.verification import InventoryExportVerifier, VerificationContext, Verifier
@@ -11,6 +12,14 @@ from tracetotest.verification import InventoryExportVerifier, VerificationContex
 ROOT = Path(__file__).resolve().parents[1]
 TASK_PATH = ROOT / "tasks/inventory/export_low_inventory.json"
 FIXTURE_PATH = ROOT / "fixtures/inventory/inventory_v1.json"
+
+
+def test_inventory_cli_visualization_defaults() -> None:
+    args = _parser().parse_args(["inventory-e2e", "--headed"])
+    assert args.headed is True
+    assert args.no_virtual_cursor is False
+    assert args.cursor_move_ms == 700
+    assert args.click_display_ms == 450
 
 
 def test_inventory_store_reset_restores_checksum() -> None:

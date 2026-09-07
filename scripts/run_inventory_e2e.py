@@ -16,6 +16,12 @@ from typing import Any, Sequence
 from dotenv import load_dotenv
 
 from apps.inventory_demo import InventoryDemoServer
+from scripts.virtual_cursor import (
+    install_virtual_cursor,
+    move_virtual_cursor_to_point,
+    set_virtual_cursor_pressed,
+    wait_for_visual_close,
+)
 from tracetotest.browser_fonts import configure_browser_fonts
 from tracetotest.tasks import TaskSpec
 from tracetotest.trace import (
@@ -40,9 +46,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--slow-mo", type=int, default=0, metavar="MS")
+    parser.add_argument("--no-virtual-cursor", action="store_true")
+    parser.add_argument("--cursor-move-ms", type=int, default=700, metavar="MS")
+    parser.add_argument("--click-display-ms", type=int, default=450, metavar="MS")
     args = parser.parse_args(argv)
-    if args.slow_mo < 0:
-        parser.error("--slow-mo must be zero or greater")
+    if min(args.slow_mo, args.cursor_move_ms, args.click_display_ms) < 0:
+        parser.error("visualization delays must be zero or greater")
     return args
 
 
@@ -82,6 +91,23 @@ def _write_manifest(path: Path, manifest: dict[str, Any]) -> None:
     temporary = path.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     temporary.replace(path)
+
+
+def _visualize_locator(page: Any, locator: Any, *, move_ms: int, click_ms: int) -> None:
+    """Show the shared cursor at a Playwright locator before the real action."""
+    install_virtual_cursor(page)
+    box = locator.bounding_box()
+    if box is None:
+        raise RuntimeError("Cannot visualize an element without a bounding box")
+    move_virtual_cursor_to_point(
+        page,
+        box["x"] + box["width"] / 2,
+        box["y"] + box["height"] / 2,
+        duration_ms=move_ms,
+    )
+    set_virtual_cursor_pressed(page, True)
+    page.wait_for_timeout(click_ms)
+    set_virtual_cursor_pressed(page, False)
 
 
 def run(argv: Sequence[str] | None = None) -> tuple[Path, bool]:
@@ -131,6 +157,12 @@ def run(argv: Sequence[str] | None = None) -> tuple[Path, bool]:
         "dependency_locks": {"uv_lock_sha256": _sha256(ROOT / "uv.lock")},
         "budget": task.limits.model_dump(mode="json"),
         "environment": {"viewport": [1280, 900], "locale": "en-US", "timezone": "UTC"},
+        "visualization": {
+            "headed": args.headed,
+            "virtual_cursor": args.headed and not args.no_virtual_cursor,
+            "cursor_move_ms": args.cursor_move_ms,
+            "click_display_ms": args.click_display_ms,
+        },
         "started_at": started.isoformat(),
         "result": None,
     }
@@ -157,6 +189,10 @@ def run(argv: Sequence[str] | None = None) -> tuple[Path, bool]:
             page = context.new_page()
             page.goto(f"{server.base_url}{task.environment.start_path}")
 
+            cursor_enabled = args.headed and not args.no_virtual_cursor
+            if cursor_enabled:
+                install_virtual_cursor(page)
+
             before_ref = collector.add_bytes(
                 "screenshots/step-0-before.png",
                 page.screenshot(),
@@ -165,9 +201,27 @@ def run(argv: Sequence[str] | None = None) -> tuple[Path, bool]:
                 redacted=True,
             )
             dom_ref = collector.add_text("dom/step-0-before.html", page.content(), kind="dom")
-            page.get_by_label("Stock less than").fill(str(task.verifier.config["threshold"]))
-            page.get_by_role("button", name="Apply filter").click()
+            threshold_input = page.get_by_label("Stock less than")
+            apply_button = page.get_by_role("button", name="Apply filter")
+            if cursor_enabled:
+                _visualize_locator(
+                    page,
+                    threshold_input,
+                    move_ms=args.cursor_move_ms,
+                    click_ms=args.click_display_ms,
+                )
+            threshold_input.fill(str(task.verifier.config["threshold"]))
+            if cursor_enabled:
+                _visualize_locator(
+                    page,
+                    apply_button,
+                    move_ms=args.cursor_move_ms,
+                    click_ms=args.click_display_ms,
+                )
+            apply_button.click()
             page.wait_for_load_state("domcontentloaded")
+            if cursor_enabled:
+                install_virtual_cursor(page)
             after_ref = collector.add_bytes(
                 "screenshots/step-0-after.png",
                 page.screenshot(),
@@ -212,8 +266,16 @@ def run(argv: Sequence[str] | None = None) -> tuple[Path, bool]:
                 redacted=True,
             )
             dom_ref = collector.add_text("dom/step-1-before.html", page.content(), kind="dom")
+            export_link = page.get_by_role("link", name="Export filtered CSV")
+            if cursor_enabled:
+                _visualize_locator(
+                    page,
+                    export_link,
+                    move_ms=args.cursor_move_ms,
+                    click_ms=args.click_display_ms,
+                )
             with page.expect_download() as download_info:
-                page.get_by_role("link", name="Export filtered CSV").click()
+                export_link.click()
             download = download_info.value
             download_path = downloads_dir / str(task.verifier.config["downloaded_file"])
             download.save_as(download_path)
@@ -290,6 +352,8 @@ def run(argv: Sequence[str] | None = None) -> tuple[Path, bool]:
                     payload=verification.model_dump(mode="json", exclude_none=True),
                 )
             )
+            if args.headed:
+                wait_for_visual_close(page)
             context.close()
             browser.close()
             browser = None

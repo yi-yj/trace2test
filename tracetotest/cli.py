@@ -59,6 +59,9 @@ def _parser() -> argparse.ArgumentParser:
     inventory.add_argument("--output-root", type=Path)
     inventory.add_argument("--headed", action="store_true")
     inventory.add_argument("--slow-mo", type=int, default=0, metavar="MS")
+    inventory.add_argument("--no-virtual-cursor", action="store_true")
+    inventory.add_argument("--cursor-move-ms", type=int, default=700, metavar="MS")
+    inventory.add_argument("--click-display-ms", type=int, default=450, metavar="MS")
     return parser
 
 
@@ -208,11 +211,22 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.command == "inventory-e2e":
         from scripts.run_inventory_e2e import run
 
-        inventory_argv = ["--task", str(args.task), "--slow-mo", str(args.slow_mo)]
+        inventory_argv = [
+            "--task",
+            str(args.task),
+            "--slow-mo",
+            str(args.slow_mo),
+            "--cursor-move-ms",
+            str(args.cursor_move_ms),
+            "--click-display-ms",
+            str(args.click_display_ms),
+        ]
         if args.output_root:
             inventory_argv.extend(("--output-root", str(args.output_root)))
         if args.headed:
             inventory_argv.append("--headed")
+        if args.no_virtual_cursor:
+            inventory_argv.append("--no-virtual-cursor")
         _, passed = run(inventory_argv)
         if not passed:
             raise SystemExit(1)

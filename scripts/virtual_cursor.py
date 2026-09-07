@@ -8,6 +8,7 @@ from typing import Any
 from tracetotest.cursor_overlay import (
     INSTALL_CURSOR_SCRIPT as _INSTALL_SCRIPT,
     MOVE_TO_BID_SCRIPT as _MOVE_SCRIPT,
+    MOVE_TO_POINT_SCRIPT as _MOVE_POINT_SCRIPT,
     SET_CURSOR_STATE_SCRIPT as _STATE_SCRIPT,
 )
 
@@ -63,6 +64,18 @@ def install_virtual_cursor(page: Any) -> None:
 def move_virtual_cursor_to_bid(page: Any, bid: str, duration_ms: int = 700) -> dict[str, int]:
     """Animate the overlay to the center of a BrowserGym bid."""
     position = page.evaluate(_MOVE_SCRIPT, {"bid": bid, "durationMs": duration_ms})
+    page.wait_for_timeout(duration_ms + 100)
+    page.evaluate(_STATE_SCRIPT, "idle")
+    return {"x": int(position["x"]), "y": int(position["y"])}
+
+
+def move_virtual_cursor_to_point(
+    page: Any, x: float, y: float, duration_ms: int = 700
+) -> dict[str, int]:
+    """Animate the overlay to page coordinates for non-BrowserGym drivers."""
+    position = page.evaluate(
+        _MOVE_POINT_SCRIPT, {"x": x, "y": y, "durationMs": duration_ms}
+    )
     page.wait_for_timeout(duration_ms + 100)
     page.evaluate(_STATE_SCRIPT, "idle")
     return {"x": int(position["x"]), "y": int(position["y"])}

@@ -26,6 +26,9 @@ Trace Schema 当前为 `1.1.0`，仍可读取 `1.0.0`；新版本增加可选的
 .venv/bin/python -m tracetotest inventory-e2e --headed --slow-mo 500
 ```
 
+可视化模式默认使用共享虚拟鼠标显示 `MOVE`、`CLICK` 和 `IDLE` 状态；任务验证完成后，
+按 Enter 或点击页面底部按钮关闭 Chromium。仅调试时可用 `--no-virtual-cursor` 关闭覆盖层。
+
 该命令执行：
 
 ```text
