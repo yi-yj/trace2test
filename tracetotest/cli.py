@@ -50,13 +50,23 @@ def _parser() -> argparse.ArgumentParser:
     adapt.add_argument("--framework", choices=("agentlab", "browser-use"), required=True)
     adapt.add_argument("--run-dir", type=Path, required=True)
     adapt.add_argument("--output-dir", type=Path)
+    inventory = subparsers.add_parser(
+        "inventory-e2e", help="Run the resettable inventory task with deterministic verification"
+    )
+    inventory.add_argument(
+        "--task", type=Path, default=ROOT / "tasks/inventory/export_low_inventory.json"
+    )
+    inventory.add_argument("--output-root", type=Path)
+    inventory.add_argument("--headed", action="store_true")
+    inventory.add_argument("--slow-mo", type=int, default=0, metavar="MS")
     return parser
 
 
 def _validate_run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     parsed = urlparse(args.start_url)
-    if parsed.scheme != "https" or not parsed.hostname or parsed.username:
-        parser.error("--start-url must be an HTTPS URL without embedded credentials")
+    local_http = parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost"}
+    if (parsed.scheme != "https" and not local_http) or not parsed.hostname or parsed.username:
+        parser.error("--start-url must be HTTPS, or HTTP on localhost, without embedded credentials")
     if args.max_steps < 1:
         parser.error("--max-steps must be at least 1")
     if min(args.cursor_move_ms, args.click_display_ms) < 0:
@@ -194,6 +204,18 @@ def main(argv: Sequence[str] | None = None) -> None:
         output_dir = _path(str(args.output_dir)) if args.output_dir else None
         adapter.convert(run_dir, output_dir)
         print(output_dir or run_dir / "canonical")
+        return
+    if args.command == "inventory-e2e":
+        from scripts.run_inventory_e2e import run
+
+        inventory_argv = ["--task", str(args.task), "--slow-mo", str(args.slow_mo)]
+        if args.output_root:
+            inventory_argv.extend(("--output-root", str(args.output_root)))
+        if args.headed:
+            inventory_argv.append("--headed")
+        _, passed = run(inventory_argv)
+        if not passed:
+            raise SystemExit(1)
         return
     _validate_run(args, parser)
     run_dir = _run_agentlab(args) if args.framework == "agentlab" else _run_browser_use(args)

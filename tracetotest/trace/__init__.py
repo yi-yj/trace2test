@@ -1,7 +1,8 @@
 """Public Trace SDK API."""
 
 from tracetotest.trace.artifacts import LocalArtifactStore
-from tracetotest.trace.exporter import export_trace
+from tracetotest.trace.collector import TraceCollector
+from tracetotest.trace.exporter import export_trace, load_trace
 from tracetotest.trace.schema import (
     ActionRecord,
     AfterState,
@@ -25,5 +26,7 @@ __all__ = [
     "ObservationRecord",
     "RunRecord",
     "StepRecord",
+    "TraceCollector",
     "export_trace",
+    "load_trace",
 ]

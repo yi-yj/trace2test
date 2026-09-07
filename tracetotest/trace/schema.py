@@ -7,7 +7,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-SCHEMA_VERSION = "1.0.0"
+from tracetotest.verification.schema import VerificationResult
+
+SCHEMA_VERSION = "1.1.0"
 
 
 class TraceModel(BaseModel):
@@ -35,6 +37,7 @@ class RunRecord(TraceModel):
     output_tokens: int = Field(default=0, ge=0)
     estimated_cost: float = Field(default=0.0, ge=0)
     manifest_ref: str
+    termination_reason: str | None = None
 
     _normalize_time = field_validator("started_at")(_utc)
 
@@ -104,11 +107,12 @@ class ArtifactRecord(TraceModel):
 
 
 class CanonicalTrace(TraceModel):
-    schema_version: Literal["1.0.0"] = SCHEMA_VERSION
+    schema_version: Literal["1.0.0", "1.1.0"] = SCHEMA_VERSION
     run: RunRecord
     steps: list[StepRecord]
     events: list[EventRecord] = Field(default_factory=list)
     artifacts: list[ArtifactRecord] = Field(default_factory=list)
+    verification: VerificationResult | None = None
 
     @model_validator(mode="after")
     def validate_relationships(self) -> "CanonicalTrace":
@@ -120,4 +124,9 @@ class CanonicalTrace(TraceModel):
         children = [*self.steps, *self.events, *self.artifacts]
         if any(record.run_id != run_id for record in children):
             raise ValueError("all child records must reference run.run_id")
+        if self.verification:
+            if self.verification.task_id != self.run.task_id:
+                raise ValueError("verification.task_id must reference run.task_id")
+            if self.verification.run_id not in (None, run_id):
+                raise ValueError("verification.run_id must reference run.run_id")
         return self

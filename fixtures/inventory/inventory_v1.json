@@ -1,0 +1,10 @@
+{
+  "fixture_id": "inventory-v1",
+  "version": "1.0.0",
+  "products": [
+    {"sku": "P100", "name": "Wireless Mouse", "stock": 5},
+    {"sku": "P200", "name": "Mechanical Keyboard", "stock": 12},
+    {"sku": "P300", "name": "27-inch Monitor", "stock": 8},
+    {"sku": "P400", "name": "USB-C Hub", "stock": 0}
+  ]
+}

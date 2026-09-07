@@ -3665,6 +3665,7 @@ dependencies = [
     { name = "browsergym-miniwob" },
     { name = "pillow" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -3680,6 +3681,7 @@ requires-dist = [
     { name = "browsergym-miniwob", specifier = "==0.14.2" },
     { name = "pillow", specifier = ">=11.0,<13" },
     { name = "python-dotenv", specifier = ">=1.0,<2" },
+    { name = "pyyaml", specifier = ">=6.0,<7" },
 ]
 
 [package.metadata.requires-dev]

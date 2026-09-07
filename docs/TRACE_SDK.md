@@ -2,7 +2,9 @@
 
 ## 当前范围
 
-- Schema `1.0.0`：`RunRecord`/`StepRecord`/`EventRecord`/`ArtifactRecord`。
+- Schema `1.1.0`（向后可读 `1.0.0`）：`RunRecord`/`StepRecord`/`EventRecord`/
+  `ArtifactRecord`，以及可选的 `VerificationResult`。
+- `TraceCollector`：每次增加 step/event/artifact/verification 后立即原子更新检查点。
 - Adapter：AgentLab 可读 `trace.json + manifest.json`；Browser Use 在模型决策回调和每步结束回调采集。
 - 导出：`canonical_trace.json`、`run.jsonl`、`steps.jsonl`、`events.jsonl`、`artifacts.jsonl`。
 - Artifact 按 SHA-256 校验；URL 凭证、API key、Cookie、token 和密码字段会脱敏。
@@ -16,6 +18,9 @@ Browser Use callbacks - BrowserUseAdapter-/
 Browser Use 保存动作前的 URL/title/DOM+A11y/截图、结构化决策摘要、元素
 index/动作参数、动作结果与动作后截图；同时记录可见的浏览器事件摘要、未完成
 network request 和文件 attachment。不保存模型私有思维链。
+
+TaskSpec、fixture 和确定性 verifier 的实现见
+[`TASK_FIXTURE_VERIFIER.md`](TASK_FIXTURE_VERIFIER.md)。
 
 ## 安全边界
 

@@ -1,0 +1,38 @@
+{
+  "task_id": "export-low-inventory",
+  "version": "1.0.0",
+  "suite_id": "inventory-demo-v1",
+  "instruction": "Filter products whose stock is less than 10, then export exactly the filtered rows as CSV.",
+  "environment": {
+    "fixture_id": "inventory-v1",
+    "fixture_version": "1.0.0",
+    "fixture_path": "fixtures/inventory/inventory_v1.json",
+    "start_path": "/inventory"
+  },
+  "limits": {
+    "max_steps": 10,
+    "timeout_seconds": 60,
+    "max_model_calls": 10,
+    "max_cost": 1.0
+  },
+  "verifier": {
+    "verifier_id": "inventory-export",
+    "verifier_version": "1.0.0",
+    "config": {
+      "threshold": 10,
+      "downloaded_file": "low-inventory.csv",
+      "expected_header": ["sku", "name", "stock"],
+      "expected_skus": ["P100", "P300", "P400"]
+    }
+  },
+  "safety": {
+    "allow_download": true,
+    "allow_database_mutation": false,
+    "allow_external_upload": false,
+    "prohibited_actions": ["delete", "purchase", "publish", "external_upload"]
+  },
+  "metadata": {
+    "task_family": "data_export",
+    "deterministic": true
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.1.0",
+  "run": {
+    "run_id": "run_synthetic_v1",
+    "task_id": "synthetic-click",
+    "suite_id": "unit-fixtures",
+    "agent_id": "synthetic-agent",
+    "framework": "synthetic",
+    "status": "succeeded",
+    "reward": 1.0,
+    "started_at": "2026-01-01T00:00:00Z",
+    "duration_ms": 25,
+    "steps": 1,
+    "input_tokens": 10,
+    "output_tokens": 3,
+    "estimated_cost": 0.0,
+    "manifest_ref": "artifact://manifest.json",
+    "termination_reason": "verified_success"
+  },
+  "steps": [
+    {
+      "run_id": "run_synthetic_v1",
+      "step_index": 0,
+      "timestamp": "2026-01-01T00:00:00.010000Z",
+      "observation": {
+        "url": "https://example.test/",
+        "title": "Synthetic task",
+        "dom_ref": "artifact://dom/step-0.txt"
+      },
+      "decision": {
+        "current_goal": "Complete the synthetic task",
+        "expected_effect": "Task becomes complete"
+      },
+      "action": {
+        "type": "click",
+        "parameters": {"index": 2},
+        "target_text": "Complete",
+        "target_element_id": "2"
+      },
+      "after": {
+        "url": "https://example.test/done",
+        "observed_effect": "Task completed",
+        "reward": 1.0
+      }
+    }
+  ],
+  "events": [
+    {
+      "event_id": "evt_synthetic_verification",
+      "run_id": "run_synthetic_v1",
+      "step_index": 0,
+      "timestamp_ns": 1767225600020000000,
+      "event_type": "verification",
+      "payload": {"passed": true}
+    }
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "art_00000",
+      "run_id": "run_synthetic_v1",
+      "type": "dom",
+      "uri": "artifact://dom/step-0.txt",
+      "sha256": "ad5a5b59fbe7071da2d0f347129dc8995d605ae53ce7471391fd9e8306c14159",
+      "content_type": "text/plain; charset=utf-8",
+      "redacted": true
+    }
+  ],
+  "verification": {
+    "verifier_id": "synthetic-verifier",
+    "verifier_version": "1.0.0",
+    "task_id": "synthetic-click",
+    "run_id": "run_synthetic_v1",
+    "passed": true,
+    "score": 1.0,
+    "checks": [
+      {
+        "name": "done_url",
+        "passed": true,
+        "expected": "/done",
+        "actual": "/done",
+        "evidence_refs": []
+      }
+    ],
+    "evidence_refs": [],
+    "failure_type": "none",
+    "verified_at": "2026-01-01T00:00:00.020000Z",
+    "duration_ms": 1
+  }
+}

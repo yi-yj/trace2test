@@ -47,6 +47,18 @@ cd ../..
 完整操作方式见 [统一 Runner 与轨迹采集指南](docs/RUNNER_TRACE_OPERATIONS.md)，
 协议和脱敏边界见 [Trace SDK 说明](docs/TRACE_SDK.md)。
 
+## 可重置库存任务
+
+运行不消耗模型 API 的完整“fixture 重置—浏览器操作—轨迹采集—确定性验证”闭环：
+
+```bash
+.venv/bin/python -m tracetotest inventory-e2e
+```
+
+当前验证器检查 CSV 文件、精确行内容、筛选阈值、导出次数、fixture checksum
+和禁止的数据库副作用。实现与 Schema 见
+[Task、Fixture、Collector 与 Verifier](docs/TASK_FIXTURE_VERIFIER.md)。
+
 ## AgentLab + Qwen
 
 默认使用 AgentLab `ToolUseAgent`、Qwen 原生 tool call 与视觉 + A11y Tree 观察：

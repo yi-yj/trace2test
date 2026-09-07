@@ -35,6 +35,8 @@ Thumbs.db
 artifacts/
 runs/
 traces/
+!tests/fixtures/traces/
+!tests/fixtures/traces/**
 *.log
 *.sqlite3
 minio-data/

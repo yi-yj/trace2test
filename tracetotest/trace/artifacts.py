@@ -19,30 +19,43 @@ class LocalArtifactStore:
         self.root.mkdir(parents=True, exist_ok=True)
         self.records: list[ArtifactRecord] = []
 
+    def _target(self, relative: str | Path) -> tuple[Path, Path]:
+        path = Path(relative)
+        if path.is_absolute() or path in {Path(""), Path(".")} or ".." in path.parts:
+            raise ValueError("artifact path must be a non-empty relative path without '..'")
+        target = self.root / path
+        if not target.resolve().is_relative_to(self.root.resolve()):
+            raise ValueError("artifact path escapes the artifact root")
+        return path, target
+
     def _record(self, relative: Path, kind: str, content_type: str, redacted: bool) -> str:
         target = self.root / relative
         digest = hashlib.sha256(target.read_bytes()).hexdigest()
         ref = f"artifact://{relative.as_posix()}"
-        self.records.append(
-            ArtifactRecord(
-                artifact_id=f"art_{len(self.records):05d}",
-                run_id=self.run_id,
-                type=kind,
-                uri=ref,
-                sha256=digest,
-                content_type=content_type,
-                redacted=redacted,
-            )
+        existing = next((item for item in self.records if item.uri == ref), None)
+        record = ArtifactRecord(
+            artifact_id=existing.artifact_id if existing else f"art_{len(self.records):05d}",
+            run_id=self.run_id,
+            type=kind,
+            uri=ref,
+            sha256=digest,
+            content_type=content_type,
+            redacted=redacted,
         )
+        if existing:
+            self.records[self.records.index(existing)] = record
+        else:
+            self.records.append(record)
         return ref
 
     def add_bytes(
         self, relative: str, data: bytes, *, kind: str, content_type: str, redacted: bool
     ) -> str:
-        path = Path(relative)
-        target = self.root / path
+        path, target = self._target(relative)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
+        temporary = target.with_suffix(target.suffix + ".tmp")
+        temporary.write_bytes(data)
+        temporary.replace(target)
         return self._record(path, kind, content_type, redacted)
 
     def add_text(self, relative: str, value: str, *, kind: str) -> str:
@@ -63,8 +76,9 @@ class LocalArtifactStore:
     def add_file(
         self, relative: str, source: Path, *, kind: str, content_type: str, redacted: bool
     ) -> str:
-        path = Path(relative)
-        target = self.root / path
+        path, target = self._target(relative)
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, target)
+        temporary = target.with_suffix(target.suffix + ".tmp")
+        shutil.copyfile(source, temporary)
+        temporary.replace(target)
         return self._record(path, kind, content_type, redacted)

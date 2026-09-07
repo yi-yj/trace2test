@@ -8,12 +8,13 @@
 .venv/bin/python -m tracetotest <command> [options]
 ```
 
-目前提供两个子命令：
+目前提供三个子命令：
 
 | 子命令 | 作用 |
 | --- | --- |
 | `run` | 调度 AgentLab 或 Browser Use 执行新任务，保存原始轨迹并自动转换为 canonical trace |
 | `adapt` | 不再次运行 Agent，将已有的 AgentLab/Browser Use 产物转换为 canonical trace |
+| `inventory-e2e` | 重置库存 fixture，执行筛选/下载，并用页面、CSV 和后端状态端到端验证 Collector/Verifier |
 
 查看命令参数：
 
@@ -21,6 +22,7 @@
 .venv/bin/python -m tracetotest --help
 .venv/bin/python -m tracetotest run --help
 .venv/bin/python -m tracetotest adapt --help
+.venv/bin/python -m tracetotest inventory-e2e --help
 ```
 
 `scripts/run_agentlab_*.py` 等脚本保留为框架专用入口和调试工具；对外执行
@@ -147,6 +149,16 @@ Browser Use：
   --headed --record-video
 ```
 
+### 3.5 库存导出确定性 E2E
+
+```bash
+.venv/bin/python -m tracetotest inventory-e2e
+.venv/bin/python -m tracetotest inventory-e2e --headed --slow-mo 500
+```
+
+该入口用固定 Playwright 驱动验证 fixture、Collector 和 Verifier 闭环，不调用模型；
+详见 [`TASK_FIXTURE_VERIFIER.md`](TASK_FIXTURE_VERIFIER.md)。
+
 ## 4. 统一调度如何实现
 
 ```text
@@ -205,7 +217,8 @@ Browser Use 的 `raw_trace.json` 是回调字段的安全子集，不是完整 h
 
 ## 6. Canonical Trace
 
-Schema 版本当前为 `1.0.0`，定义位于 `tracetotest/trace/schema.py`。
+Schema 版本当前为 `1.1.0`，定义位于 `tracetotest/trace/schema.py`；仍可
+加载 `1.0.0` 历史轨迹。
 
 | 记录 | 主要内容 |
 | --- | --- |
