@@ -33,6 +33,32 @@ LiteLLM 价格表未收录的 Qwen 型号只输出一条简短 warning，保留 
 
 产物保存在 `artifacts/agentlab-web/<experiment>/`。不要将该入口用于登录、下单、发布、删除或其他会改变外部状态的操作。
 
+### 中文字体与登录状态
+
+WSL headed Chromium 会自动通过 `configs/fontconfig-wsl.conf` 使用 Windows 已安装的微软雅黑/宋体，不复制字体文件。
+
+首次手动登录并保存 Playwright `storageState`：
+
+```bash
+.venv/bin/python -m scripts.capture_browser_state \
+  --url https://login.taobao.com/ \
+  --name taobao
+```
+
+登录成功后回到终端按 Enter，状态保存在被 Git 忽略的 `.auth/taobao.json`。后续演示加载它：
+
+```bash
+.venv/bin/python -m scripts.run_agentlab_web \
+  --start-url https://www.taobao.com/ \
+  --goal '在搜索框输入“无线鼠标”并搜索，不要点击商品或修改账户数据。' \
+  --expected-url-contains s.taobao.com \
+  --max-steps 2 \
+  --storage-state .auth/taobao.json \
+  --headed --slow-mo 800 --record-video
+```
+
+`storageState` 包含可能用于冒充账号的 Cookie 和本地存储，禁止提交或分享。它不包含 `sessionStorage`，且不保证消除站点的 CAPTCHA/风控。
+
 ## MiniWoB smoke test
 
 项目使用 Python 3.11、AgentLab 0.4.2、BrowserGym 0.14.2 和固定版本的 MiniWoB++：

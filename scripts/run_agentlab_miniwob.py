@@ -16,6 +16,7 @@ import yaml
 from dotenv import load_dotenv
 
 from scripts.run_miniwob_smoke import _json_safe, _miniwob_base_url
+from tracetotest.browser_fonts import configure_browser_fonts
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -180,6 +181,7 @@ def _write_readable_trace(exp_dir: Path) -> dict[str, Any]:
 def main(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
     load_dotenv(ROOT / ".env")
+    font_config = configure_browser_fonts()
     api_key = os.getenv("DASHSCOPE_API_KEY", "").strip()
     base_url = os.getenv("DASHSCOPE_BASE_URL", "").rstrip("/")
     if not api_key:
@@ -250,6 +252,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             "click_display_ms": args.click_display_ms,
         },
         "config": config,
+        "browser_fonts": font_config,
         "git": _git_state(),
         "started_at": started_at.isoformat(),
         "finished_at": datetime.now(timezone.utc).isoformat(),

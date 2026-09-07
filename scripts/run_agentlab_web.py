@@ -22,6 +22,7 @@ from scripts.run_agentlab_miniwob import (
     _model_environment,
     _write_readable_trace,
 )
+from tracetotest.browser_fonts import configure_browser_fonts
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -36,6 +37,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-steps", type=int, default=1)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--storage-state",
+        type=Path,
+        help="Private Playwright state captured under .auth/ (cookies and localStorage).",
+    )
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--slow-mo", type=int, default=0, metavar="MS")
     parser.add_argument("--record-video", action="store_true")
@@ -50,6 +56,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error("--max-steps must be at least 1")
     if min(args.slow_mo, args.cursor_move_ms, args.click_display_ms) < 0:
         parser.error("visualization delays must be zero or greater")
+    if args.storage_state is not None:
+        state_path = args.storage_state if args.storage_state.is_absolute() else ROOT / args.storage_state
+        if not state_path.is_file():
+            parser.error(f"--storage-state does not exist: {state_path}")
+        args.storage_state = state_path
     return args
 
 
@@ -62,6 +73,7 @@ def _last_url(exp_dir: Path) -> str:
 def main(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
     load_dotenv(ROOT / ".env")
+    font_config = configure_browser_fonts()
     api_key = os.getenv("DASHSCOPE_API_KEY", "").strip()
     base_url = os.getenv("DASHSCOPE_BASE_URL", "").rstrip("/")
     if not api_key:
@@ -95,6 +107,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             record_video=args.record_video,
             slow_mo=args.slow_mo or None,
             task_kwargs={"start_url": args.start_url, "goal": args.goal},
+            storage_state=str(args.storage_state) if args.storage_state else None,
             virtual_cursor=args.headed and not args.no_virtual_cursor,
             cursor_move_duration_ms=args.cursor_move_ms,
             click_display_ms=args.click_display_ms,
@@ -127,6 +140,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         "model": model,
         "provider_model": provider_model,
         "config": config,
+        "browser_fonts": font_config,
+        "authentication": {
+            "storage_state": args.storage_state.name if args.storage_state else None,
+            "state_contents_recorded": False,
+        },
         "git": _git_state(),
         "started_at": started_at.isoformat(),
         "finished_at": datetime.now(timezone.utc).isoformat(),
@@ -148,4 +166,3 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

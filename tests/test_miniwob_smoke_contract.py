@@ -12,6 +12,7 @@ def test_required_local_configuration_is_ignored() -> None:
     assert ".env" in gitignore
     assert "artifacts/" in gitignore
     assert ".benchmarks/" in gitignore
+    assert ".auth/" in gitignore
 
 
 def test_smoke_runner_records_required_artifacts() -> None:

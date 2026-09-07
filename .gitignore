@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+.auth/
 
 # Python
 __pycache__/
