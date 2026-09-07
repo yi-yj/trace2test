@@ -19,7 +19,9 @@ Web/GUI Agent 轨迹回放、故障聚类与回归测试平台。
 ```
 
 原始 AgentLab 轨迹、可读 `trace.json`、每步截图、reward、版本清单和 manifest 保存在 `artifacts/agentlab/<experiment>/`。配置见 `configs/agents/`。
-LiteLLM 价格表未收录的 Qwen 型号会保留 token 用量，并将 `effective_cost` 记为 `0`，不影响动作执行。
+headed 模式默认启用共享虚拟鼠标：黄色 `MOVE`、红色 `CLICK`、蓝色 `IDLE`。可用 `--cursor-move-ms`、`--click-display-ms` 调整演示速度，或用 `--no-virtual-cursor` 关闭。后续 Agent 框架统一通过 `tracetotest.visualization.wrap_env_with_virtual_cursor` 接入。
+
+LiteLLM 价格表未收录的 Qwen 型号只输出一条简短 warning，保留 token 用量并将 `effective_cost` 记为 `0`，不影响动作执行。
 
 ## MiniWoB smoke test
 

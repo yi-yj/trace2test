@@ -40,11 +40,18 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--headed", action="store_true", help="Show the Chromium window.")
     parser.add_argument("--slow-mo", type=int, default=0, metavar="MS")
     parser.add_argument("--record-video", action="store_true")
+    parser.add_argument(
+        "--no-virtual-cursor",
+        action="store_true",
+        help="Hide the shared virtual cursor in headed mode.",
+    )
+    parser.add_argument("--cursor-move-ms", type=int, default=700, metavar="MS")
+    parser.add_argument("--click-display-ms", type=int, default=450, metavar="MS")
     args = parser.parse_args(argv)
     if args.max_steps < 1:
         parser.error("--max-steps must be at least 1")
-    if args.slow_mo < 0:
-        parser.error("--slow-mo must be zero or greater")
+    if min(args.slow_mo, args.cursor_move_ms, args.click_display_ms) < 0:
+        parser.error("visualization delays must be zero or greater")
     return args
 
 
@@ -187,7 +194,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     model = os.getenv(model_env, "qwen3-vl-plus" if uses_vision else "qwen-plus")
     agent_args, provider_model = _make_agent_args(config, model, base_url)
 
-    from agentlab.experiments.loop import EnvArgs, ExpArgs
+    from agentlab.experiments.loop import ExpArgs
+    from tracetotest.agentlab_visualization import VisualEnvArgs
 
     started_at = datetime.now(timezone.utc)
     artifact_root = Path(os.getenv("ARTIFACT_STORE_PATH", "./artifacts"))
@@ -198,7 +206,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     bypass_proxy = os.getenv("DASHSCOPE_BYPASS_PROXY", "false").casefold() == "true"
 
     with _miniwob_base_url() as miniwob_url, _model_environment(api_key, bypass_proxy):
-        env_args = EnvArgs(
+        env_args = VisualEnvArgs(
             task_name=_task_id(args.task),
             task_seed=args.seed,
             max_steps=args.max_steps,
@@ -206,6 +214,9 @@ def main(argv: Sequence[str] | None = None) -> None:
             record_video=args.record_video,
             slow_mo=args.slow_mo or None,
             task_kwargs={"base_url": miniwob_url},
+            virtual_cursor=args.headed and not args.no_virtual_cursor,
+            cursor_move_duration_ms=args.cursor_move_ms,
+            click_display_ms=args.click_display_ms,
         )
         experiment = ExpArgs(
             agent_args=agent_args,
@@ -229,6 +240,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         "pricing": {
             "source": "litellm",
             "unknown_model_fallback": "effective_cost=0",
+        },
+        "visualization": {
+            "headed": args.headed,
+            "record_video": args.record_video,
+            "virtual_cursor": args.headed and not args.no_virtual_cursor,
+            "cursor_move_ms": args.cursor_move_ms,
+            "click_display_ms": args.click_display_ms,
         },
         "config": config,
         "git": _git_state(),

@@ -39,6 +39,7 @@ BrowserGym smoke → 统一 Trace Schema → AgentLab + Browser Use adapters
 
 - 主要代码运行于 WSL2/Linux；使用 Python 3.11 与 `uv`，前端使用 Node.js 20 LTS 与 pnpm。
 - 外部框架通过 adapter 隔离，并固定版本或 commit；统一轨迹 schema 独立版本化。
+- 所有 Agent 框架及统一 Runner 在 headed 可视化时必须默认启用共享虚拟鼠标，明确区分 MOVE、CLICK 和非点击状态；通过统一环境包装层接入，不在各 adapter 重复实现。
 - 成功判定优先使用确定性 verifier；Judge 必须结构化输出并引用可核验的轨迹证据。
 - 功能实现必须附带与风险相称的测试，包括 schema 单元测试、adapter/runner 集成测试和关键失败类型的 golden fixtures。
 - 修改架构、schema、依赖或 release gate 时，同步更新文档、fixture 和可复现记录。

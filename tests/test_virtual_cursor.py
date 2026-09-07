@@ -3,6 +3,7 @@ from scripts.virtual_cursor import (
     move_virtual_cursor_to_bid,
     set_virtual_cursor_pressed,
 )
+from tracetotest.visualization import extract_visual_actions, visualize_action
 
 
 class FakePage:
@@ -35,3 +36,24 @@ def test_virtual_cursor_lifecycle() -> None:
         "pressed",
         "idle",
     ]
+
+
+def test_visual_actions_are_parsed_without_execution() -> None:
+    actions = extract_visual_actions("fill(bid='16', value='user')\nclick(bid='20')")
+    assert [(item.name, item.bid) for item in actions] == [("fill", "16"), ("click", "20")]
+    assert extract_visual_actions("not valid python (") == []
+
+
+def test_click_is_red_but_fill_is_not() -> None:
+    page = FakePage()
+
+    visualize_action(page, "fill(bid='16', value='user')", move_duration_ms=10)
+    assert "pressed" not in [argument for _, argument in page.evaluations]
+
+    visualize_action(page, "click(bid='20')", move_duration_ms=10, click_display_ms=25)
+    assert [argument for _, argument in page.evaluations[-3:]] == [
+        "idle",
+        "pressed",
+        "idle",
+    ]
+    assert page.waits == [110, 110, 25]

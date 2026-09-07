@@ -12,6 +12,9 @@ def test_agentlab_runner_defaults_to_vision_and_click_test() -> None:
     assert args.config == DEFAULT_CONFIG
     assert _task_id(args.task) == "miniwob.click-test"
     assert _load_agent_config(args.config)["observation"]["use_screenshot"] is True
+    assert args.no_virtual_cursor is False
+    assert args.cursor_move_ms == 700
+    assert args.click_display_ms == 450
 
 
 def test_agentlab_a11y_config_uses_bid_actions_without_screenshot() -> None:
@@ -32,3 +35,18 @@ def test_qwen_model_args_do_not_persist_api_key() -> None:
         model_name="openai/qwen-test", base_url="https://example.test/v1", api_key=None
     )
     assert args.api_key is None
+
+
+def test_qwen_unknown_price_is_warning_only(caplog) -> None:
+    args = QwenLiteLLMModelArgs(
+        model_name="openai/qwen-unmapped-test",
+        base_url="https://example.test/v1",
+        api_key=None,
+    )
+    with caplog.at_level("WARNING"):
+        model = args.make_model()
+    assert model.pricing_available is False
+    assert model.get_effective_cost(None) == 0
+    assert len(caplog.records) == 1
+    assert caplog.records[0].levelname == "WARNING"
+    assert "effective_cost=0" in caplog.records[0].message
