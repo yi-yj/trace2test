@@ -18,6 +18,7 @@ from typing import Any, Sequence
 from tracetotest.cursor_overlay import (
     INSTALL_CURSOR_SCRIPT,
     MOVE_TO_POINT_SCRIPT,
+    REMOVE_CURSOR_SCRIPT,
     SET_CURSOR_STATE_SCRIPT,
 )
 from tracetotest.trace.redaction import redact
@@ -146,14 +147,14 @@ async def _run(args: argparse.Namespace) -> bool:
         if not args.headed or args.no_virtual_cursor:
             return
         page = await browser.must_get_current_page()
-        await page.evaluate(INSTALL_CURSOR_SCRIPT)
-        for action in actions:
-            if not action:
-                continue
-            name, parameters = next(iter(action.items()))
-            if not isinstance(parameters, dict) or parameters.get("index") is None:
-                continue
-            try:
+        try:
+            await page.evaluate(INSTALL_CURSOR_SCRIPT)
+            for action in actions:
+                if not action:
+                    continue
+                name, parameters = next(iter(action.items()))
+                if not isinstance(parameters, dict) or parameters.get("index") is None:
+                    continue
                 node = state.dom_state.selector_map.get(int(parameters["index"]))
                 rect = node.absolute_position if node else None
                 if rect is None:
@@ -167,8 +168,15 @@ async def _run(args: argparse.Namespace) -> bool:
                     await page.evaluate(SET_CURSOR_STATE_SCRIPT, "pressed")
                     await asyncio.sleep(args.click_display_ms / 1000)
                 await page.evaluate(SET_CURSOR_STATE_SCRIPT, "idle")
+        except Exception as error:
+            print(f"Virtual cursor skipped: {error}")
+        finally:
+            # Browser Use executes the selected action after this callback. The
+            # overlay must not be present when it builds the following DOM state.
+            try:
+                await page.evaluate(REMOVE_CURSOR_SCRIPT)
             except Exception as error:
-                print(f"Virtual cursor skipped {name}: {error}")
+                print(f"Virtual cursor cleanup skipped: {error}")
 
     async def on_step_end(agent: Any) -> None:
         if not records:
@@ -182,8 +190,6 @@ async def _run(args: argparse.Namespace) -> bool:
             record["screenshot_after"] = _save_screenshot(
                 run_dir, int(record["step"]), "after", await page.screenshot()
             )
-            if args.headed and not args.no_virtual_cursor:
-                await page.evaluate(INSTALL_CURSOR_SCRIPT)
         except Exception as error:
             record["capture_error"] = str(error)
 

@@ -126,7 +126,9 @@ def _model_environment(api_key: str, bypass_proxy: bool) -> Iterator[None]:
                 os.environ[name] = value
 
 
-def _make_agent_args(config: dict[str, Any], model: str, base_url: str):
+def _make_agent_args(
+    config: dict[str, Any], model: str, base_url: str, *, enable_finish: bool = False
+):
     from copy import deepcopy
 
     from agentlab.agents.tool_use_agent import DEFAULT_PROMPT_CONFIG, ToolUseAgentArgs
@@ -151,7 +153,14 @@ def _make_agent_args(config: dict[str, Any], model: str, base_url: str):
         temperature=float(config.get("temperature", 0)),
         vision_support=prompt_config.obs.use_screenshot,
     )
-    agent_args = ToolUseAgentArgs(model_args=model_args, config=prompt_config)
+    action_set = None
+    if enable_finish:
+        from tracetotest.agent_completion import AgentCompletionActionSet
+
+        action_set = AgentCompletionActionSet(prompt_config.action_subsets, multiaction=False)
+    agent_args = ToolUseAgentArgs(
+        model_args=model_args, config=prompt_config, action_set=action_set
+    )
     agent_args.agent_name = str(config.get("name", agent_args.agent_name))
     return agent_args, provider_model
 

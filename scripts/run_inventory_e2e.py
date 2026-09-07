@@ -19,6 +19,7 @@ from apps.inventory_demo import InventoryDemoServer
 from scripts.virtual_cursor import (
     install_virtual_cursor,
     move_virtual_cursor_to_point,
+    remove_virtual_cursor,
     set_virtual_cursor_pressed,
     wait_for_visual_close,
 )
@@ -96,18 +97,21 @@ def _write_manifest(path: Path, manifest: dict[str, Any]) -> None:
 def _visualize_locator(page: Any, locator: Any, *, move_ms: int, click_ms: int) -> None:
     """Show the shared cursor at a Playwright locator before the real action."""
     install_virtual_cursor(page)
-    box = locator.bounding_box()
-    if box is None:
-        raise RuntimeError("Cannot visualize an element without a bounding box")
-    move_virtual_cursor_to_point(
-        page,
-        box["x"] + box["width"] / 2,
-        box["y"] + box["height"] / 2,
-        duration_ms=move_ms,
-    )
-    set_virtual_cursor_pressed(page, True)
-    page.wait_for_timeout(click_ms)
-    set_virtual_cursor_pressed(page, False)
+    try:
+        box = locator.bounding_box()
+        if box is None:
+            raise RuntimeError("Cannot visualize an element without a bounding box")
+        move_virtual_cursor_to_point(
+            page,
+            box["x"] + box["width"] / 2,
+            box["y"] + box["height"] / 2,
+            duration_ms=move_ms,
+        )
+        set_virtual_cursor_pressed(page, True)
+        page.wait_for_timeout(click_ms)
+        set_virtual_cursor_pressed(page, False)
+    finally:
+        remove_virtual_cursor(page)
 
 
 def run(argv: Sequence[str] | None = None) -> tuple[Path, bool]:
@@ -200,6 +204,8 @@ def run(argv: Sequence[str] | None = None) -> tuple[Path, bool]:
                 content_type="image/png",
                 redacted=True,
             )
+            if cursor_enabled:
+                remove_virtual_cursor(page)
             dom_ref = collector.add_text("dom/step-0-before.html", page.content(), kind="dom")
             threshold_input = page.get_by_label("Stock less than")
             apply_button = page.get_by_role("button", name="Apply filter")
@@ -265,6 +271,8 @@ def run(argv: Sequence[str] | None = None) -> tuple[Path, bool]:
                 content_type="image/png",
                 redacted=True,
             )
+            if cursor_enabled:
+                remove_virtual_cursor(page)
             dom_ref = collector.add_text("dom/step-1-before.html", page.content(), kind="dom")
             export_link = page.get_by_role("link", name="Export filtered CSV")
             if cursor_enabled:

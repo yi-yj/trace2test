@@ -9,6 +9,7 @@ from tracetotest.cursor_overlay import (
     INSTALL_CURSOR_SCRIPT as _INSTALL_SCRIPT,
     MOVE_TO_BID_SCRIPT as _MOVE_SCRIPT,
     MOVE_TO_POINT_SCRIPT as _MOVE_POINT_SCRIPT,
+    REMOVE_CURSOR_SCRIPT as _REMOVE_SCRIPT,
     SET_CURSOR_STATE_SCRIPT as _STATE_SCRIPT,
 )
 
@@ -59,6 +60,11 @@ _INSTALL_CLOSE_CONTROL_SCRIPT = r"""
 def install_virtual_cursor(page: Any) -> None:
     """Install a pointer-events-free cursor overlay in the active page."""
     page.evaluate(_INSTALL_SCRIPT)
+
+
+def remove_virtual_cursor(page: Any) -> None:
+    """Remove the overlay before browser actions and observation extraction."""
+    page.evaluate(_REMOVE_SCRIPT)
 
 
 def move_virtual_cursor_to_bid(page: Any, bid: str, duration_ms: int = 700) -> dict[str, int]:

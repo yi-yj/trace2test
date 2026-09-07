@@ -1,7 +1,14 @@
 from pathlib import Path
 
-from scripts.run_agentlab_miniwob import DEFAULT_CONFIG, _load_agent_config, _parse_args, _task_id
+from scripts.run_agentlab_miniwob import (
+    DEFAULT_CONFIG,
+    _load_agent_config,
+    _make_agent_args,
+    _parse_args,
+    _task_id,
+)
 from tracetotest.agentlab_qwen import QwenLiteLLMModelArgs
+from tracetotest.agent_completion import AgentCompletionActionSet
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +29,30 @@ def test_agentlab_a11y_config_uses_bid_actions_without_screenshot() -> None:
     assert config["observation"]["use_screenshot"] is False
     assert config["observation"]["use_axtree"] is True
     assert config["action_subsets"] == ["bid"]
+
+
+def test_real_site_action_set_has_agent_controlled_finish() -> None:
+    action_set = AgentCompletionActionSet(("bid",), multiaction=False)
+    tools = action_set.to_tool_description()
+
+    assert "finish_task" in action_set.action_set
+    finish_tool = next(tool for tool in tools if tool["name"] == "finish_task")
+    assert finish_tool["parameters"]["required"] == ["reason"]
+    code = action_set.to_python_code('finish_task("goal verified")')
+    messages = []
+    exec(code, {"DEMO_MODE": False, "send_message_to_user": messages.append})
+    assert messages == ["TRACE2TEST_TASK_COMPLETE: goal verified"]
+
+
+def test_real_site_runner_enables_finish_without_changing_miniwob() -> None:
+    config = _load_agent_config(DEFAULT_CONFIG)
+    web_args, _ = _make_agent_args(
+        config, "qwen-test", "https://example.test/v1", enable_finish=True
+    )
+    miniwob_args, _ = _make_agent_args(config, "qwen-test", "https://example.test/v1")
+
+    assert "finish_task" in web_args.action_set.action_set
+    assert miniwob_args.action_set is None
 
 
 def test_agentlab_runner_records_raw_and_readable_traces() -> None:

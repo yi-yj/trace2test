@@ -12,12 +12,27 @@ import gymnasium as gym
 from scripts.virtual_cursor import (
     install_virtual_cursor,
     move_virtual_cursor_to_bid,
+    remove_virtual_cursor,
     set_virtual_cursor_pressed,
 )
 
 
 logger = logging.getLogger(__name__)
 CLICK_ACTIONS = frozenset({"click", "dblclick"})
+BID_TARGET_ACTIONS = frozenset(
+    {
+        "fill",
+        "select_option",
+        "click",
+        "dblclick",
+        "hover",
+        "press",
+        "focus",
+        "clear",
+        "drag_and_drop",
+        "upload_file",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -41,6 +56,8 @@ def extract_visual_actions(action: str) -> list[VisualAction]:
             continue
         call = statement.value
         if not isinstance(call.func, ast.Name):
+            continue
+        if call.func.id not in BID_TARGET_ACTIONS:
             continue
         bid_node = next((item.value for item in call.keywords if item.arg == "bid"), None)
         if bid_node is None and call.args:
@@ -98,12 +115,20 @@ class VirtualCursorEnvWrapper(gym.Wrapper):
             move_duration_ms=self.move_duration_ms,
             click_display_ms=self.click_display_ms,
         )
-        result = self.env.step(action)
         try:
-            install_virtual_cursor(self._page)
+            remove_virtual_cursor(self._page)
         except Exception as error:
-            logger.warning("Virtual cursor refresh skipped: %s", error)
-        return result
+            logger.warning("Virtual cursor removal skipped: %s", error)
+        try:
+            # BrowserGym executes the action and extracts the next observation here.
+            # Keeping the overlay detached prevents it from receiving synthetic bids
+            # or appearing in the DOM/A11y representation given to the Agent.
+            return self.env.step(action)
+        finally:
+            try:
+                install_virtual_cursor(self._page)
+            except Exception as error:
+                logger.warning("Virtual cursor refresh skipped: %s", error)
 
 
 def wrap_env_with_virtual_cursor(
@@ -117,4 +142,3 @@ def wrap_env_with_virtual_cursor(
     if not enabled:
         return env
     return VirtualCursorEnvWrapper(env, move_duration_ms, click_display_ms)
-

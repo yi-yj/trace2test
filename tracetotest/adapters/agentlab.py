@@ -106,8 +106,22 @@ class AgentLabAdapter:
         error = summary.get("err_msg")
         truncated = bool(summary.get("truncated"))
         succeeded = bool(verifier.get("success")) if verifier else float(summary.get("cum_reward", 0) or 0) > 0
-        status = "error" if error else "truncated" if truncated else "succeeded" if succeeded else "failed"
         failure_type = _failure_type(verifier, summary, succeeded)
+        agent_declared_complete = bool(
+            actionable
+            and parse_agentlab_action(actionable[-1][1].get("action")).type == "finish_task"
+        )
+        if failure_type == "environment":
+            termination_reason = "environment_error"
+        elif error:
+            termination_reason = "agent_error"
+        elif truncated:
+            termination_reason = "max_steps"
+        elif agent_declared_complete:
+            termination_reason = "agent_declared_complete"
+        else:
+            termination_reason = "verified"
+        status = "error" if error else "truncated" if truncated else "succeeded" if succeeded else "failed"
         verification = (
             VerificationResult(
                 verifier_id=str(verifier.get("type") or "agentlab-result"),
@@ -146,11 +160,7 @@ class AgentLabAdapter:
                 output_tokens=int(summary.get("stats.cum_output_tokens", 0) or 0),
                 estimated_cost=float(summary.get("stats.cum_cost", 0) or 0),
                 manifest_ref=manifest_ref,
-                termination_reason=(
-                    "environment_error"
-                    if failure_type == "environment"
-                    else "agent_error" if error else "max_steps" if truncated else "verified"
-                ),
+                termination_reason=termination_reason,
             ),
             steps=steps,
             events=[

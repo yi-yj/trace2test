@@ -24,6 +24,7 @@ from scripts.run_agentlab_miniwob import (
     _write_readable_trace,
 )
 from tracetotest.browser_fonts import configure_browser_fonts
+from tracetotest.agent_completion import COMPLETION_ACTION_VERSION
 from tracetotest.browser_tasks import TASK_ID as WEB_TASK_ID
 from tracetotest.browser_tasks import ensure_browser_tasks_registered
 from tracetotest.proxy import browser_proxy_environment, resolve_browser_proxy
@@ -103,7 +104,9 @@ def main(argv: Sequence[str] | None = None) -> Path:
     uses_vision = bool(config["observation"].get("use_screenshot", False))
     model_env = "QWEN_VISION_MODEL" if uses_vision else "QWEN_TOOL_MODEL"
     model = os.getenv(model_env, "qwen3-vl-plus" if uses_vision else "qwen-plus")
-    agent_args, provider_model = _make_agent_args(config, model, base_url)
+    agent_args, provider_model = _make_agent_args(
+        config, model, base_url, enable_finish=True
+    )
     browser_proxy = resolve_browser_proxy()
     ensure_browser_tasks_registered()
 
@@ -187,6 +190,12 @@ def main(argv: Sequence[str] | None = None) -> Path:
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "summary": summary,
         "verifier": verifier,
+        "completion": {
+            "action": "finish_task",
+            "version": COMPLETION_ACTION_VERSION,
+            "controlled_by": "agent",
+            "verifier_timing": "post_run",
+        },
         "visualization": {
             "headed": args.headed,
             "record_video": args.record_video,

@@ -1,18 +1,31 @@
 from scripts.virtual_cursor import (
     install_virtual_cursor,
     move_virtual_cursor_to_bid,
+    remove_virtual_cursor,
     set_virtual_cursor_pressed,
 )
-from tracetotest.visualization import extract_visual_actions, visualize_action
+from tracetotest.cursor_overlay import INSTALL_CURSOR_SCRIPT, REMOVE_CURSOR_SCRIPT
+from tracetotest.visualization import (
+    VirtualCursorEnvWrapper,
+    extract_visual_actions,
+    visualize_action,
+)
+
+import gymnasium as gym
 
 
 class FakePage:
     def __init__(self) -> None:
         self.evaluations = []
         self.waits = []
+        self.cursor_installed = False
 
     def evaluate(self, script, argument=None):
         self.evaluations.append((script, argument))
+        if script == INSTALL_CURSOR_SCRIPT:
+            self.cursor_installed = True
+        elif script == REMOVE_CURSOR_SCRIPT:
+            self.cursor_installed = False
         if isinstance(argument, dict) and "bid" in argument:
             return {"x": 120, "y": 80}
         return None
@@ -28,19 +41,23 @@ def test_virtual_cursor_lifecycle() -> None:
     position = move_virtual_cursor_to_bid(page, "13", duration_ms=700)
     set_virtual_cursor_pressed(page, True)
     set_virtual_cursor_pressed(page, False)
+    remove_virtual_cursor(page)
 
     assert position == {"x": 120, "y": 80}
     assert page.waits == [800]
-    assert [argument for _, argument in page.evaluations[-3:]] == [
+    assert [argument for _, argument in page.evaluations[-4:-1]] == [
         "idle",
         "pressed",
         "idle",
     ]
+    assert page.evaluations[-1][0] == REMOVE_CURSOR_SCRIPT
+    assert page.cursor_installed is False
 
 
 def test_visual_actions_are_parsed_without_execution() -> None:
     actions = extract_visual_actions("fill(bid='16', value='user')\nclick(bid='20')")
     assert [(item.name, item.bid) for item in actions] == [("fill", "16"), ("click", "20")]
+    assert extract_visual_actions('finish_task("goal verified")') == []
     assert extract_visual_actions("not valid python (") == []
 
 
@@ -57,3 +74,29 @@ def test_click_is_red_but_fill_is_not() -> None:
         "idle",
     ]
     assert page.waits == [110, 110, 25]
+
+
+class FakeBrowserEnv(gym.Env):
+    def __init__(self, page: FakePage) -> None:
+        self.page = page
+        self.cursor_present_during_step = None
+
+    def reset(self, **kwargs):
+        return {"axtree": "clean"}, {}
+
+    def step(self, action):
+        self.cursor_present_during_step = self.page.cursor_installed
+        return {"axtree": "clean"}, 0, False, False, {}
+
+
+def test_wrapper_detaches_cursor_during_action_and_observation() -> None:
+    page = FakePage()
+    env = FakeBrowserEnv(page)
+    wrapper = VirtualCursorEnvWrapper(env, move_duration_ms=0, click_display_ms=0)
+
+    wrapper.reset()
+    assert page.cursor_installed is True
+    wrapper.step("click(bid='13')")
+
+    assert env.cursor_present_during_step is False
+    assert page.cursor_installed is True

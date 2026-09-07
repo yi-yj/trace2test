@@ -200,3 +200,47 @@ def test_agentlab_navigation_failure_is_canonical_environment_failure(tmp_path) 
     assert trace.run.status == "error"
     assert trace.run.termination_reason == "environment_error"
     assert trace.verification and trace.verification.failure_type == "environment"
+
+
+def test_agent_completion_and_post_run_verification_stay_independent(tmp_path) -> None:
+    run_dir = tmp_path / "agentlab-premature-finish"
+    run_dir.mkdir()
+    (run_dir / "trace.json").write_text(
+        json.dumps(
+            [
+                {
+                    "step": 0,
+                    "observation": {"url": "https://example.com/"},
+                    "action": 'finish_task(reason="I think this is complete")',
+                    "reward": 0,
+                    "terminated": True,
+                    "truncated": False,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "task_id": "real-site",
+                "started_at": "2026-01-01T00:00:00Z",
+                "finished_at": "2026-01-01T00:00:01Z",
+                "summary": {"terminated": True, "truncated": False},
+                "verifier": {
+                    "type": "url_contains",
+                    "expected": "/target",
+                    "actual": "https://example.com/",
+                    "success": False,
+                    "failure_type": "agent",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    trace = AgentLabAdapter().convert(run_dir)
+
+    assert trace.run.status == "failed"
+    assert trace.run.termination_reason == "agent_declared_complete"
+    assert trace.verification and trace.verification.passed is False

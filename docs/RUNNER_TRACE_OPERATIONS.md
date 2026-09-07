@@ -114,6 +114,11 @@ Browser Use：
 任务成功。对比两个框架时，应保持 task-id、URL、goal、max-steps、模型观察
 模式和 verifier 一致；无法一致的项目必须记入 manifest。
 
+AgentLab 真实网站入口额外向 Agent 提供 `finish_task(reason)`。Agent 确认目标
+已完成后必须主动调用它，此时环境仅结束 action loop；`--expected-url-contains`
+仍在 run 结束后独立验证最终页面，不会提前打断 Agent。因此“Agent 声明完成”
+和“Verifier 判定成功”会被分别记录。
+
 ### 3.2 可视化和录像
 
 ```bash
@@ -124,6 +129,8 @@ Browser Use：
 
 - 默认为 headless；`--headed` 显示 Chromium。
 - headed 时默认启用共享虚拟鼠标：黄色 `MOVE`、红色 `CLICK`、蓝色 `IDLE`。
+- 虚拟鼠标只在演示阶段附加到页面；执行真实动作和抽取 DOM/A11y 前会被移除，
+  不会进入 Agent 的观测或占用 BID。
 - `--cursor-move-ms` 和 `--click-display-ms` 调整演示速度。
 - `--no-virtual-cursor` 关闭虚拟鼠标。
 - `--record-video` 把浏览器会话保存到当次 run 的 video 目录。

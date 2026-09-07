@@ -31,6 +31,14 @@ INSTALL_CURSOR_SCRIPT = r"""
 }
 """
 
+REMOVE_CURSOR_SCRIPT = r"""
+() => {
+  const host = document.getElementById("__tracetotest_virtual_cursor");
+  if (host) host.remove();
+  return true;
+}
+"""
+
 MOVE_TO_BID_SCRIPT = r"""
 ({bid, durationMs}) => {
   const host = document.getElementById("__tracetotest_virtual_cursor");

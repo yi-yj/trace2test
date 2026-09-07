@@ -10,6 +10,8 @@ from browsergym.core.task import OpenEndedTask
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
+from tracetotest.agent_completion import completion_reason
+
 TASK_ID = "tracetotest.openended"
 GYM_ID = f"browsergym/{TASK_ID}"
 
@@ -47,6 +49,22 @@ class Trace2TestOpenEndedTask(OpenEndedTask):
             host = urlsplit(self.start_url).hostname or "unknown host"
             raise EnvironmentNavigationError(f"Initial navigation to {host} failed") from error
         return self.goal, {"navigation_timeout_ms": self.navigation_timeout_ms}
+
+    def validate(self, page: Page, chat_messages: list[dict]) -> tuple[float, bool, str, dict]:
+        """Stop only when the Agent explicitly declares completion.
+
+        Success is intentionally not decided here. The configured deterministic
+        verifier evaluates the final browser state after the experiment ends.
+        """
+        reward, done, message, info = super().validate(page, chat_messages)
+        reason = completion_reason(chat_messages)
+        if reason is not None:
+            return 0, True, "", {
+                **info,
+                "agent_declared_complete": True,
+                "completion_reason": reason,
+            }
+        return reward, done, message, info
 
 
 def ensure_browser_tasks_registered() -> None:
