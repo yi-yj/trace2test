@@ -1,0 +1,180 @@
+"""Convert the Browser Use callback trace to the canonical schema."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+from tracetotest.adapters.common import parse_structured_action, parse_time, stable_run_id
+from tracetotest.trace import (
+    AfterState,
+    CanonicalTrace,
+    DecisionRecord,
+    EventRecord,
+    LocalArtifactStore,
+    ObservationRecord,
+    RunRecord,
+    StepRecord,
+    export_trace,
+)
+from tracetotest.trace.redaction import redact, redact_url
+
+
+class BrowserUseAdapter:
+    framework = "browser-use"
+
+    def convert(self, run_dir: Path, output_dir: Path | None = None) -> CanonicalTrace:
+        run_dir = Path(run_dir)
+        trace_path = run_dir / "raw_trace.json"
+        manifest_path = run_dir / "manifest.json"
+        if not trace_path.is_file() or not manifest_path.is_file():
+            raise FileNotFoundError("Browser Use adapter requires raw_trace.json and manifest.json")
+        raw: dict[str, Any] = json.loads(trace_path.read_text(encoding="utf-8"))
+        manifest: dict[str, Any] = json.loads(manifest_path.read_text(encoding="utf-8"))
+        started = parse_time(manifest.get("started_at"))
+        finished = parse_time(manifest.get("finished_at"), started)
+        run_id = stable_run_id(self.framework, run_dir.name, started.isoformat())
+        canonical_dir = output_dir or run_dir / "canonical"
+        store = LocalArtifactStore(canonical_dir / "artifacts", run_id)
+        manifest_ref = store.add_json("raw/manifest.json", manifest, kind="manifest")
+        store.add_json("raw/trace.json", raw, kind="raw_trace")
+
+        steps: list[StepRecord] = []
+        for index, item in enumerate(raw.get("steps", [])):
+            before_ref = self._screenshot(store, run_dir, item.get("screenshot_before"), index, "before")
+            after_ref = self._screenshot(store, run_dir, item.get("screenshot_after"), index, "after")
+            dom_ref = (
+                store.add_text(f"dom/step-{index}.txt", str(item["dom"]), kind="dom")
+                if item.get("dom")
+                else None
+            )
+            actions = item.get("actions") or [{}]
+            action = parse_structured_action(actions[0])
+            decision = item.get("decision") or {}
+            results = item.get("results") or []
+            error = next((str(result.get("error")) for result in results if result.get("error")), None)
+            effect = next(
+                (str(result.get("extracted_content")) for result in results if result.get("extracted_content")),
+                None,
+            )
+            steps.append(
+                StepRecord(
+                    run_id=run_id,
+                    step_index=index,
+                    timestamp=parse_time(item.get("timestamp"), started),
+                    observation=ObservationRecord(
+                        url=redact_url(str(item.get("url") or "")),
+                        title=str(item.get("title") or "") or None,
+                        screenshot_ref=before_ref,
+                        dom_ref=dom_ref,
+                        a11y_ref=dom_ref,
+                    ),
+                    decision=DecisionRecord(
+                        current_goal=decision.get("current_goal"),
+                        evaluation_previous_goal=decision.get("evaluation_previous_goal"),
+                        expected_effect=decision.get("expected_effect"),
+                    ),
+                    action=action,
+                    after=AfterState(
+                        url=redact_url(str(item.get("url_after") or "")) or None,
+                        title=str(item.get("title_after") or "") or None,
+                        screenshot_ref=after_ref,
+                        observed_effect=effect,
+                    ),
+                    error=error,
+                )
+            )
+
+        result = manifest.get("result") or {}
+        usage = manifest.get("usage") or {}
+        success = bool(result.get("success"))
+        status = "error" if result.get("error") else "succeeded" if success else "failed"
+        if result.get("truncated"):
+            status = "truncated"
+        events = [
+            EventRecord(
+                event_id="evt_verification",
+                run_id=run_id,
+                step_index=len(steps) - 1 if steps else None,
+                timestamp_ns=int(finished.timestamp() * 1_000_000_000),
+                event_type="verification",
+                payload=redact(result),
+            )
+        ]
+        for step_index, item in enumerate(raw.get("steps", [])):
+            timestamp_ns = int(parse_time(item.get("timestamp"), started).timestamp() * 1_000_000_000)
+            if item.get("recent_events"):
+                events.append(
+                    EventRecord(
+                        event_id=f"evt_{step_index:04d}_browser",
+                        run_id=run_id,
+                        step_index=step_index,
+                        timestamp_ns=timestamp_ns,
+                        event_type="browser_event_summary",
+                        payload={"summary": redact(str(item["recent_events"]))},
+                    )
+                )
+            for event_index, request in enumerate(item.get("pending_network_requests") or []):
+                events.append(
+                    EventRecord(
+                        event_id=f"evt_{step_index:04d}_network_{event_index:03d}",
+                        run_id=run_id,
+                        step_index=step_index,
+                        timestamp_ns=timestamp_ns,
+                        event_type="network_request",
+                        payload=redact(request),
+                    )
+                )
+            for result_index, action_result in enumerate(item.get("results") or []):
+                for file_index, attachment in enumerate(action_result.get("attachments") or []):
+                    events.append(
+                        EventRecord(
+                            event_id=f"evt_{step_index:04d}_file_{result_index:03d}_{file_index:03d}",
+                            run_id=run_id,
+                            step_index=step_index,
+                            timestamp_ns=timestamp_ns,
+                            event_type="file_artifact",
+                            payload={"path": redact(str(attachment))},
+                        )
+                    )
+        trace = CanonicalTrace(
+            run=RunRecord(
+                run_id=run_id,
+                task_id=str(manifest.get("task_id", "web-task")),
+                suite_id=str(manifest.get("suite_id", "web")),
+                agent_id=str(manifest.get("agent_id", "browser-use-qwen")),
+                framework=self.framework,
+                status=status,
+                reward=1.0 if success else 0.0,
+                started_at=started,
+                duration_ms=max(0, int((finished - started).total_seconds() * 1000)),
+                steps=len(steps),
+                input_tokens=int(usage.get("input_tokens", 0) or 0),
+                output_tokens=int(usage.get("output_tokens", 0) or 0),
+                estimated_cost=float(usage.get("total_cost", 0) or 0),
+                manifest_ref=manifest_ref,
+            ),
+            steps=steps,
+            events=events,
+            artifacts=store.records,
+        )
+        export_trace(trace, canonical_dir)
+        return trace
+
+    @staticmethod
+    def _screenshot(
+        store: LocalArtifactStore, run_dir: Path, filename: Any, index: int, phase: str
+    ) -> str | None:
+        if not filename:
+            return None
+        source = run_dir / str(filename)
+        if not source.is_file():
+            return None
+        return store.add_file(
+            f"screenshots/step-{index}-{phase}.png",
+            source,
+            kind="screenshot",
+            content_type="image/png",
+            redacted=False,
+        )

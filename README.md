@@ -2,6 +2,50 @@
 
 Web/GUI Agent 轨迹回放、故障聚类与回归测试平台。
 
+## 统一 Runner 与 Trace SDK
+
+同一条命令可选择 AgentLab 或 Browser Use，两者都会产生 `canonical/canonical_trace.json`
+及 Run/Step/Event/Artifact JSONL：
+
+```bash
+.venv/bin/python -m tracetotest run --framework agentlab --headed
+.venv/bin/python -m tracetotest run --framework browser-use --headed
+```
+
+传入同一组任务、预算和验证条件：
+
+```bash
+.venv/bin/python -m tracetotest run \
+  --framework browser-use \
+  --task-id example-link \
+  --start-url https://example.com \
+  --goal "Click the 'More information...' link once." \
+  --expected-url-contains iana.org \
+  --max-steps 5 \
+  --headed --record-video
+```
+
+Browser Use 0.13.10 使用独立环境，避免其新版 `anthropic` 与 AgentLab 0.4.2 冲突：
+
+```bash
+cd integrations/browser_use
+UV_CACHE_DIR=../../.cache/uv UV_PYTHON_INSTALL_DIR=../../.tools/python \
+  ../../.tools/uv sync --python ../../.venv/bin/python
+cd ../..
+```
+
+统一 Runner 读取现有 `.env` 中的 Qwen 配置。headed 模式默认有共享虚拟鼠标；
+`--storage-state .auth/<name>.json` 可加载登录状态，`--no-virtual-cursor` 可显式关闭鼠标。
+
+也可将历史原始轨迹单独转换：
+
+```bash
+.venv/bin/python -m tracetotest adapt --framework agentlab --run-dir artifacts/agentlab/<run>
+.venv/bin/python -m tracetotest adapt --framework browser-use --run-dir artifacts/browser-use/<run>
+```
+
+协议和脱敏边界见 [Trace SDK 说明](docs/TRACE_SDK.md)。
+
 ## AgentLab + Qwen
 
 默认使用 AgentLab `ToolUseAgent`、Qwen 原生 tool call 与视觉 + A11y Tree 观察：

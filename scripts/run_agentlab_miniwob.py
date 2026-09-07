@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -85,6 +86,17 @@ def _git_state() -> dict[str, Any]:
         ).stdout.strip()
     )
     return {"commit": commit, "dirty": dirty}
+
+
+def _sha256_file(path: Path) -> str | None:
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+
+
+def _git_commit_for(path: Path) -> str | None:
+    completed = subprocess.run(
+        ["git", "-C", str(path), "rev-parse", "HEAD"], capture_output=True, text=True
+    )
+    return completed.stdout.strip() if completed.returncode == 0 else None
 
 
 @contextmanager
@@ -178,7 +190,7 @@ def _write_readable_trace(exp_dir: Path) -> dict[str, Any]:
     return result.summary_info
 
 
-def main(argv: Sequence[str] | None = None) -> None:
+def main(argv: Sequence[str] | None = None) -> Path:
     args = _parse_args(argv)
     load_dotenv(ROOT / ".env")
     font_config = configure_browser_fonts()
@@ -252,6 +264,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             "click_display_ms": args.click_display_ms,
         },
         "config": config,
+        "config_sha256": _sha256_file(args.config if args.config.is_absolute() else ROOT / args.config),
+        "dependency_locks": {"uv_lock_sha256": _sha256_file(ROOT / "uv.lock")},
+        "dataset": {
+            "name": "miniwob-plusplus",
+            "commit": _git_commit_for(Path(os.environ["MINIWOB_ROOT"]).resolve().parents[1]),
+        },
         "browser_fonts": font_config,
         "git": _git_state(),
         "started_at": started_at.isoformat(),
@@ -266,9 +284,23 @@ def main(argv: Sequence[str] | None = None) -> None:
     (exp_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    print(json.dumps({"experiment_dir": str(exp_dir), "summary": summary}, indent=2))
+    from tracetotest.adapters import AgentLabAdapter
+
+    canonical = AgentLabAdapter().convert(exp_dir)
+    print(
+        json.dumps(
+            {
+                "experiment_dir": str(exp_dir),
+                "canonical_trace": str(exp_dir / "canonical/canonical_trace.json"),
+                "status": canonical.run.status,
+                "summary": summary,
+            },
+            indent=2,
+        )
+    )
     if summary.get("err_msg"):
         raise RuntimeError(f"AgentLab experiment failed; inspect {exp_dir / 'experiment.log'}")
+    return exp_dir
 
 
 if __name__ == "__main__":

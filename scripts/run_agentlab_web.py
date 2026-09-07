@@ -20,6 +20,7 @@ from scripts.run_agentlab_miniwob import (
     _load_agent_config,
     _make_agent_args,
     _model_environment,
+    _sha256_file,
     _write_readable_trace,
 )
 from tracetotest.browser_fonts import configure_browser_fonts
@@ -28,6 +29,7 @@ from tracetotest.browser_fonts import configure_browser_fonts
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--start-url", default="https://example.com")
+    parser.add_argument("--task-id", default="web-task")
     parser.add_argument(
         "--goal",
         default="Click the 'More information...' link once.",
@@ -70,7 +72,7 @@ def _last_url(exp_dir: Path) -> str:
     return next((str(url) for url in reversed(urls) if url), "")
 
 
-def main(argv: Sequence[str] | None = None) -> None:
+def main(argv: Sequence[str] | None = None) -> Path:
     args = _parse_args(argv)
     load_dotenv(ROOT / ".env")
     font_config = configure_browser_fonts()
@@ -133,13 +135,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         "framework": "AgentLab",
         "framework_version": version("agentlab"),
         "browsergym_version": version("browsergym-core"),
-        "task_id": "openended",
+        "task_id": args.task_id,
         "task_seed": args.seed,
         "start_url": args.start_url,
         "goal": args.goal,
         "model": model,
         "provider_model": provider_model,
         "config": config,
+        "config_sha256": _sha256_file(args.config if args.config.is_absolute() else ROOT / args.config),
+        "dependency_locks": {"uv_lock_sha256": _sha256_file(ROOT / "uv.lock")},
+        "dataset": {"name": "live-https-site", "versioned": False},
         "browser_fonts": font_config,
         "authentication": {
             "storage_state": args.storage_state.name if args.storage_state else None,
@@ -159,9 +164,23 @@ def main(argv: Sequence[str] | None = None) -> None:
     (exp_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    print(json.dumps({"experiment_dir": str(exp_dir), "verifier": verifier}, indent=2))
+    from tracetotest.adapters import AgentLabAdapter
+
+    canonical = AgentLabAdapter().convert(exp_dir)
+    print(
+        json.dumps(
+            {
+                "experiment_dir": str(exp_dir),
+                "canonical_trace": str(exp_dir / "canonical/canonical_trace.json"),
+                "status": canonical.run.status,
+                "verifier": verifier,
+            },
+            indent=2,
+        )
+    )
     if summary.get("err_msg") or not verifier["success"]:
         raise RuntimeError(f"Real-site demo failed; inspect {exp_dir}")
+    return exp_dir
 
 
 if __name__ == "__main__":
