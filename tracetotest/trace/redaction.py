@@ -36,9 +36,11 @@ _SENSITIVE_ASSIGNMENT = re.compile(
 
 def is_sensitive_key(value: str) -> bool:
     normalized = value.casefold().replace("-", "_")
+    if normalized.endswith("_tokens") or normalized in {"tokens", "token_count"}:
+        return False
     return normalized in {item.replace("-", "_") for item in SENSITIVE_KEYS} or any(
-        marker in normalized for marker in ("password", "passwd", "secret", "token", "api_key", "cookie")
-    )
+        marker in normalized for marker in ("password", "passwd", "secret", "api_key", "cookie")
+    ) or normalized.endswith("_token")
 
 
 def redact_text(value: str) -> str:

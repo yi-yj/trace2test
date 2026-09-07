@@ -47,6 +47,10 @@ def test_redaction_removes_credentials_and_url_userinfo() -> None:
     assert cleaned["nested"]["api_key"] == REDACTED
     assert "user:password" not in cleaned["url"]
     assert f"token={REDACTED}" in cleaned["url"] or "token=%5BREDACTED%5D" in cleaned["url"]
+    assert redact({"input_tokens": 123, "access_token": "secret"}) == {
+        "input_tokens": 123,
+        "access_token": REDACTED,
+    }
 
 
 def _assert_artifacts(trace: CanonicalTrace, canonical_dir) -> None:

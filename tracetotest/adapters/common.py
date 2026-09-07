@@ -28,6 +28,13 @@ def parse_time(value: Any, fallback: datetime | None = None) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def safe_number(value: Any, number_type: type[int] | type[float]) -> int | float:
+    try:
+        return number_type(value or 0)
+    except (TypeError, ValueError):
+        return number_type(0)
+
+
 def parse_agentlab_action(value: Any) -> ActionRecord:
     if not isinstance(value, str) or not value.strip():
         return ActionRecord(type="noop", parameters={})

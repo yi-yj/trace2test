@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tracetotest.adapters.common import parse_structured_action, parse_time, stable_run_id
+from tracetotest.adapters.common import parse_structured_action, parse_time, safe_number, stable_run_id
 from tracetotest.trace import (
     AfterState,
     CanonicalTrace,
@@ -150,9 +150,9 @@ class BrowserUseAdapter:
                 started_at=started,
                 duration_ms=max(0, int((finished - started).total_seconds() * 1000)),
                 steps=len(steps),
-                input_tokens=int(usage.get("input_tokens", 0) or 0),
-                output_tokens=int(usage.get("output_tokens", 0) or 0),
-                estimated_cost=float(usage.get("total_cost", 0) or 0),
+                input_tokens=safe_number(usage.get("input_tokens"), int),
+                output_tokens=safe_number(usage.get("output_tokens"), int),
+                estimated_cost=safe_number(usage.get("total_cost"), float),
                 manifest_ref=manifest_ref,
             ),
             steps=steps,
