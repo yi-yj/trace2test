@@ -23,6 +23,16 @@ headed 模式默认启用共享虚拟鼠标：黄色 `MOVE`、红色 `CLICK`、�
 
 LiteLLM 价格表未收录的 Qwen 型号只输出一条简短 warning，保留 token 用量并将 `effective_cost` 记为 `0`，不影响动作执行。
 
+### 受控的真实站点演示
+
+真实站点只用于只读演示，不作为正式 benchmark。默认在 `example.com` 点击一个公开链接，并用最终 URL 而不是 openended 的固定零 reward 验证结果：
+
+```bash
+.venv/bin/python -m scripts.run_agentlab_web --headed --record-video
+```
+
+产物保存在 `artifacts/agentlab-web/<experiment>/`。不要将该入口用于登录、下单、发布、删除或其他会改变外部状态的操作。
+
 ## MiniWoB smoke test
 
 项目使用 Python 3.11、AgentLab 0.4.2、BrowserGym 0.14.2 和固定版本的 MiniWoB++：
