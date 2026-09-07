@@ -104,6 +104,7 @@ async def _run(args: argparse.Namespace) -> bool:
         "highlight_elements": True,
         "viewport": {"width": 1280, "height": 900},
         "keep_alive": False,
+        "enable_default_extensions": False,
     }
     if args.browser_executable:
         browser_kwargs["executable_path"] = str(args.browser_executable.resolve())

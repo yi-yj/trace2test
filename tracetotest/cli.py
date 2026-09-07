@@ -171,6 +171,7 @@ def _run_browser_use(args: argparse.Namespace) -> Path:
     environment["BROWSER_USE_CONFIG_DIR"] = str(ROOT / ".cache/browseruse")
     environment["PLAYWRIGHT_BROWSERS_PATH"] = str(ROOT / ".cache/ms-playwright")
     environment["PYTHONPATH"] = str(ROOT)
+    environment["ANONYMIZED_TELEMETRY"] = "false"
     if environment.get("DASHSCOPE_BYPASS_PROXY", "false").casefold() == "true":
         for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
             environment.pop(name, None)
