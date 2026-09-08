@@ -35,7 +35,7 @@
 - `missing-export`：导出控件缺失；
 - `corrupt-export`：CSV 行内容不完整。
 
-正式报告保存在被 Git 忽略的 `artifacts/acceptance/<timestamp>/phase2.json`。本次报告目录为 `artifacts/acceptance/20260908_082746_400080/`。
+正式报告保存在被 Git 忽略的 `artifacts/acceptance/<timestamp>/phase2.json`。本次报告目录为 `artifacts/acceptance/20260908_083810_086085/`，运行代码版本为 `1d7bf85eb6d53e3a03a493179620a60954892c73`，所有任务 manifest 均记录 `dirty=false`。
 
 ## Phase 3
 
@@ -43,8 +43,8 @@
 
 | 框架 | Run ID | Steps | Agent 完成动作 | Verifier |
 |---|---|---:|---|---|
-| AgentLab Vision | `run_b6801e1edc90dce1` | 3 | `finish_task` | 通过 |
-| Browser Use | `run_ec7f2b46e82dae1c` | 3 | 原生 `done` | 通过 |
+| AgentLab Vision | `run_cc82d70bea57d126` | 6 | `finish_task` | 通过 |
+| Browser Use | `run_2337984af7e792bd` | 3 | 原生 `done` | 通过 |
 
 两条运行进入同一结果数据库，均保存原始轨迹、canonical trace，并且每个 step 都有关联 screenshot 和 action。复验入口：
 
@@ -53,7 +53,7 @@
   --task-id filter-low-inventory
 ```
 
-本次报告目录为 `artifacts/acceptance/20260908_082548_062025/`。
+本次报告目录为 `artifacts/acceptance/20260908_083635_864428/`，运行代码版本为 `1d7bf85eb6d53e3a03a493179620a60954892c73`，报告记录 `dirty=false`。
 
 ## 自动化测试与限制
 
