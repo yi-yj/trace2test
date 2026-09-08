@@ -6,4 +6,4 @@ COPY tracetotest/fixtures ./tracetotest/fixtures
 COPY fixtures ./fixtures
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
-CMD ["python", "-m", "apps.inventory_demo", "--port", "8080"]
+CMD ["python", "-m", "apps.inventory_demo", "--host", "0.0.0.0", "--port", "8080"]

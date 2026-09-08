@@ -82,12 +82,15 @@ def _parser() -> argparse.ArgumentParser:
     phase3.add_argument("--task-id", default="filter-low-inventory")
     phase3.add_argument("--output-root", type=Path)
     phase3.add_argument("--database-url")
+    migrate = subparsers.add_parser("migrate-results", help="Copy canonical runs between result databases")
+    migrate.add_argument("--source", default="sqlite:///./data/results.sqlite3")
+    migrate.add_argument("--target", help="Defaults to DATABASE_URL")
     return parser
 
 
 def _database(value: str | None = None) -> ResultStore:
     load_dotenv(ROOT / ".env")
-    return ResultStore.from_url(value or os.getenv("DATABASE_URL", "sqlite:///./data/results.sqlite3"), ROOT)
+    return ResultStore.from_url(value or os.getenv("DATABASE_URL", "postgresql://tracetotest:change-me@localhost:5432/tracetotest"), ROOT)
 
 
 def _load_task(args: argparse.Namespace) -> tuple[TaskSpec, Path] | None:
@@ -308,6 +311,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         print(json.dumps({"report": str(report), "passed": passed}, ensure_ascii=False))
         if not passed: raise SystemExit(1)
         return
+    if args.command == "migrate-results":
+        load_dotenv(ROOT / ".env")
+        source = ResultStore.from_url(args.source, ROOT)
+        target = _database(args.target)
+        migrated = target.migrate_from(source)
+        print(json.dumps({"migrated": migrated, "source": source.location, "target": target.location, "target_count": target.count()}, ensure_ascii=False))
+        return
     loaded = _load_task(args)
     if loaded:
         from apps.inventory_demo import InventoryDemoServer
@@ -341,7 +351,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             _sync_manifest_artifact(trace, trace_path.parent, manifest)
             export_trace(trace, trace_path.parent)
             _database(args.database_url).record(trace, trace_path)
-            print(json.dumps({"run_dir": str(run_dir), "database": str(_database(args.database_url).path), "passed": verification.passed}, ensure_ascii=False))
+            print(json.dumps({"run_dir": str(run_dir), "database": _database(args.database_url).location, "passed": verification.passed}, ensure_ascii=False))
             if not verification.passed:
                 raise RuntimeError(f"TaskSpec verifier failed; inspect {run_dir}")
         return

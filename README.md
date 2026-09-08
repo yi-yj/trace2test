@@ -21,7 +21,8 @@ Web/GUI Agent 轨迹回放、故障聚类与回归测试平台。
   --headed
 ```
 
-运行结果统一写入 `.env` 的 `DATABASE_URL`（默认 `sqlite:///./data/results.sqlite3`）。
+运行结果统一写入 `.env` 的 `DATABASE_URL`，默认使用 Docker Compose 中的
+PostgreSQL 16。SQLite 仅保留为离线测试和历史数据迁移源。
 
 传入同一组任务、预算和验证条件：
 
@@ -76,9 +77,15 @@ cd ../..
 
 ```bash
 docker compose up --build -d
+.venv/bin/python -m tracetotest migrate-results \
+  --source sqlite:///./data/results.sqlite3
 .venv/bin/python -m tracetotest acceptance
 .venv/bin/python -m tracetotest phase3-acceptance --task-id filter-low-inventory
 ```
+
+首次启动前将 `.env.example` 中的 PostgreSQL 变量写入被 Git 忽略的 `.env`，
+并将 `change-me` 替换为本地强密码。迁移命令可重复执行，同一 `run_id`
+会被原子替换，不会产生重复运行。
 
 验收范围、真实跨框架 Run ID 和当前限制见 [Phase 2 / Phase 3 验收记录](docs/PHASE2_PHASE3_ACCEPTANCE.md)。
 

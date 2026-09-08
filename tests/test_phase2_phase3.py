@@ -101,8 +101,35 @@ def test_result_database_accepts_both_frameworks(tmp_path) -> None:
     assert {row["framework"] for row in rows} == {"agentlab", "browser-use"}
 
 
+def test_result_database_migration_is_idempotent(tmp_path) -> None:
+    source = ResultStore(tmp_path / "source.sqlite3")
+    target = ResultStore(tmp_path / "target.sqlite3")
+    trace = _trace("run-migrate", "agentlab")
+    path = tmp_path / "trace.json"; path.write_text(trace.model_dump_json())
+    source.record(trace, path)
+    assert target.migrate_from(source) == 1
+    assert target.migrate_from(source) == 1
+    assert target.count() == 1
+
+
+def test_postgresql_location_omits_credentials() -> None:
+    store = ResultStore.__new__(ResultStore)
+    store.backend = "postgresql"
+    store.path = None
+    store._dsn = "postgresql://private-user:private-password@db:5432/results"
+    assert store.location == "postgresql://db:5432/results"
+    assert "private" not in store.location
+
+
 def test_compose_starts_admin_service_contract() -> None:
     compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    postgres = compose["services"]["postgres"]
     service = compose["services"]["admin-demo"]
+    assert postgres["image"] == "postgres:16.15-bookworm"
+    assert postgres["ports"] == ["127.0.0.1:5432:5432"]
+    assert postgres["volumes"] == ["postgres-data:/var/lib/postgresql/data"]
+    assert "healthcheck" in postgres
     assert service["ports"] == ["127.0.0.1:8080:8080"]
+    assert service["depends_on"]["postgres"]["condition"] == "service_healthy"
     assert "healthcheck" in service
+    assert '"--host", "0.0.0.0"' in (ROOT / "Dockerfile.admin").read_text()

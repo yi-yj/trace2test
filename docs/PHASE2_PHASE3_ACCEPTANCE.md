@@ -16,7 +16,7 @@
   --task tasks/admin/filter_low_inventory.json
 ```
 
-`--task` 是任务 ID、目标、起始路径、fixture、步数预算和 Verifier 的唯一来源。两个框架完成后才调用确定性 Verifier；Verifier 不提前终止 Agent。结果默认写入 `sqlite:///./data/results.sqlite3`，可用 `DATABASE_URL` 或 `--database-url` 更改。
+`--task` 是任务 ID、目标、起始路径、fixture、步数预算和 Verifier 的唯一来源。两个框架完成后才调用确定性 Verifier；Verifier 不提前终止 Agent。结果默认写入 `.env` 配置的 PostgreSQL，可用 `--database-url` 覆盖。
 
 ## Phase 2
 
@@ -59,10 +59,11 @@
 
 ```bash
 .venv/bin/python -m pytest -q
-# 56 passed
+# 58 passed
 ```
 
-当前 WSL 发行版没有 `docker` 命令，因此 `docker-compose.yml` 已通过 YAML/契约测试，但本机容器启动和 healthcheck 尚未实测。装有 Docker Desktop WSL integration 的环境应再执行：
+本机已安装 Docker Desktop 4.90.0（Engine 29.7.2）并开启 Ubuntu 22.04
+WSL integration。PostgreSQL 16.15 和后台容器均已实际启动并通过 healthcheck：
 
 ```bash
 docker compose up --build -d
@@ -71,4 +72,6 @@ curl http://127.0.0.1:8080/health
 docker compose down
 ```
 
-结果库当前采用本地 SQLite，足以满足 Phase 3 的统一存储验收；迁移到总体架构目标中的 PostgreSQL 应在多进程批量 Runner 开始前完成。
+结果库已迁移到 PostgreSQL。历史 SQLite 库中 34 条 Run 已全部迁移，
+迁移后比对 `(run_id, task_id, framework, status, steps)` 集合完全一致；
+AgentLab 和 Browser Use 的 Phase 3 关键 Run 均可从 PostgreSQL 查询。

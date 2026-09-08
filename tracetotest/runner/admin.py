@@ -197,6 +197,6 @@ def run_phase3_acceptance(task_id: str, output_root: Path, database: ResultStore
     report_dir.mkdir(parents=True, exist_ok=False)
     same_task_spec = len(task_hashes) == 1
     root = Path(__file__).resolve().parents[2]
-    payload = {"phase": 3, "git": _git_state(root), "task_id": task_id, "same_task_spec_sha256": next(iter(task_hashes), None) if same_task_spec else None, "same_result_database": str(database.path), "frameworks": frameworks, "passed": same_task_spec and all(item["passed"] for item in frameworks)}
+    payload = {"phase": 3, "git": _git_state(root), "task_id": task_id, "same_task_spec_sha256": next(iter(task_hashes), None) if same_task_spec else None, "same_result_database": database.location, "frameworks": frameworks, "passed": same_task_spec and all(item["passed"] for item in frameworks)}
     (report_dir / "phase3.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return report_dir, bool(payload["passed"])

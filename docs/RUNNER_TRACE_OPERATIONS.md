@@ -380,7 +380,20 @@ Adapter 输入要求：
 
 TaskSpec 提供 task/suite ID、instruction、fixture、start path、预算、安全边界和确定性 Verifier。Runner 启动并重置 localhost 后台，框架退出后才执行 Verifier，然后把 canonical trace 写入两个框架共享的 `DATABASE_URL`。
 
-默认数据库为 `sqlite:///./data/results.sqlite3`。命令行 `--database-url` 优先于环境变量。当前只接受 `sqlite:///` URL。
+默认结果库为 Docker Compose 中的 PostgreSQL 16，连接由 `.env` 的
+`DATABASE_URL` 提供。命令行 `--database-url` 优先于环境变量。
+`postgresql://`/`postgres://` 是正式运行后端；`sqlite:///` 仅用于离线测试和历史迁移。
+
+启动与迁移：
+
+```bash
+docker compose up --build -d
+.venv/bin/python -m tracetotest migrate-results \
+  --source sqlite:///./data/results.sqlite3
+```
+
+`migrate-results` 从 canonical trace 重建结构化记录，会同步 Run、Step、Artifact 和
+Verification。同一 `run_id` 的写入是事务内的幂等替换。命令输出会隐藏用户名和密码。
 
 Phase 2 与 Phase 3 复验命令：
 

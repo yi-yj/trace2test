@@ -285,9 +285,15 @@ def _handler(store: InventoryStore):
 
 
 class InventoryDemoServer:
-    def __init__(self, fixture_path: Path, faults: list[str] | None = None, port: int = 0):
+    def __init__(
+        self,
+        fixture_path: Path,
+        faults: list[str] | None = None,
+        port: int = 0,
+        host: str = "127.0.0.1",
+    ):
         self.store = InventoryStore(fixture_path, faults=faults)
-        self._server = ThreadingHTTPServer(("127.0.0.1", port), _handler(self.store))
+        self._server = ThreadingHTTPServer((host, port), _handler(self.store))
         self._thread: threading.Thread | None = None
 
     @property
