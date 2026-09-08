@@ -119,6 +119,10 @@ AgentLab 真实网站入口额外向 Agent 提供 `finish_task(reason)`。Agent 
 仍在 run 结束后独立验证最终页面，不会提前打断 Agent。因此“Agent 声明完成”
 和“Verifier 判定成功”会被分别记录。
 
+Adapter 会把 AgentLab `finish_task` 和 Browser Use 原生 `done/is_done` 统一转换为
+canonical `agent_finish` 事件，其 payload 固定包含 `declared_success` 和 `reason`；
+run 的 `termination_reason` 同样记为 `agent_finish`。`verification` 事件仍与之独立。
+
 ### 3.2 可视化和录像
 
 ```bash

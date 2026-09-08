@@ -89,6 +89,38 @@ class BrowserUseAdapter:
 
         result = manifest.get("result") or {}
         usage = manifest.get("usage") or {}
+        agent_finish = None
+        for index, item in reversed(list(enumerate(raw.get("steps", [])))):
+            done_params = next(
+                (
+                    action["done"]
+                    for action in item.get("actions") or []
+                    if isinstance(action, dict) and isinstance(action.get("done"), dict)
+                ),
+                None,
+            )
+            done_result = next(
+                (
+                    action_result
+                    for action_result in item.get("results") or []
+                    if action_result.get("is_done") is True
+                ),
+                None,
+            )
+            if done_params is not None or done_result is not None:
+                done_params = done_params or {}
+                done_result = done_result or {}
+                agent_finish = {
+                    "step_index": index,
+                    "timestamp": parse_time(item.get("timestamp"), started),
+                    "declared_success": done_result.get(
+                        "success", done_params.get("success")
+                    ),
+                    "reason": done_params.get("text")
+                    or done_result.get("extracted_content")
+                    or "",
+                }
+                break
         success = bool(result.get("success"))
         status = "error" if result.get("error") else "succeeded" if success else "failed"
         if result.get("truncated") and not result.get("error"):
@@ -96,6 +128,16 @@ class BrowserUseAdapter:
         failure_type = str(result.get("failure_type") or ("none" if success else "agent"))
         if failure_type not in {"none", "agent", "environment", "verifier"}:
             failure_type = "verifier"
+        if failure_type == "environment":
+            termination_reason = "environment_error"
+        elif result.get("error"):
+            termination_reason = "agent_error"
+        elif result.get("truncated"):
+            termination_reason = "max_steps"
+        elif agent_finish:
+            termination_reason = "agent_finish"
+        else:
+            termination_reason = "verified"
         verification = VerificationResult(
             verifier_id="url_contains" if result.get("expected_url_contains") else "agent_result",
             verifier_version="1.0.0",
@@ -114,7 +156,26 @@ class BrowserUseAdapter:
             failure_type=failure_type,
             error=str(result.get("error") or "") or None,
         )
-        events = [
+        events = []
+        if agent_finish:
+            events.append(
+                EventRecord(
+                    event_id="evt_agent_finish",
+                    run_id=run_id,
+                    step_index=agent_finish["step_index"],
+                    timestamp_ns=int(
+                        agent_finish["timestamp"].timestamp() * 1_000_000_000
+                    ),
+                    event_type="agent_finish",
+                    payload=redact(
+                        {
+                            "declared_success": agent_finish["declared_success"],
+                            "reason": agent_finish["reason"],
+                        }
+                    ),
+                )
+            )
+        events.append(
             EventRecord(
                 event_id="evt_verification",
                 run_id=run_id,
@@ -123,7 +184,7 @@ class BrowserUseAdapter:
                 event_type="verification",
                 payload=redact(result),
             )
-        ]
+        )
         for step_index, item in enumerate(raw.get("steps", [])):
             timestamp_ns = int(parse_time(item.get("timestamp"), started).timestamp() * 1_000_000_000)
             if item.get("recent_events"):
@@ -176,11 +237,7 @@ class BrowserUseAdapter:
                 output_tokens=safe_number(usage.get("output_tokens"), int),
                 estimated_cost=safe_number(usage.get("total_cost"), float),
                 manifest_ref=manifest_ref,
-                termination_reason=(
-                    "environment_error"
-                    if failure_type == "environment"
-                    else "agent_error" if result.get("error") else "max_steps" if result.get("truncated") else "verified"
-                ),
+                termination_reason=termination_reason,
             ),
             steps=steps,
             events=events,

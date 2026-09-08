@@ -242,5 +242,61 @@ def test_agent_completion_and_post_run_verification_stay_independent(tmp_path) -
     trace = AgentLabAdapter().convert(run_dir)
 
     assert trace.run.status == "failed"
-    assert trace.run.termination_reason == "agent_declared_complete"
+    assert trace.run.termination_reason == "agent_finish"
+    finish_event = next(event for event in trace.events if event.event_type == "agent_finish")
+    assert finish_event.step_index == 0
+    assert finish_event.payload == {
+        "declared_success": True,
+        "reason": "I think this is complete",
+    }
     assert trace.verification and trace.verification.passed is False
+
+
+def test_browser_use_done_is_normalized_to_agent_finish(tmp_path) -> None:
+    run_dir = tmp_path / "browser-use-finish"
+    run_dir.mkdir()
+    (run_dir / "raw_trace.json").write_text(
+        json.dumps(
+            {
+                "steps": [
+                    {
+                        "timestamp": "2026-01-01T00:00:00Z",
+                        "url": "https://example.com/target",
+                        "actions": [
+                            {"done": {"text": "Target page verified", "success": True}}
+                        ],
+                        "results": [{"is_done": True, "success": True}],
+                        "url_after": "https://example.com/target",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "task_id": "real-site",
+                "started_at": "2026-01-01T00:00:00Z",
+                "finished_at": "2026-01-01T00:00:01Z",
+                "result": {
+                    "success": True,
+                    "agent_success": True,
+                    "expected_url_contains": "/target",
+                    "final_url": "https://example.com/target",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    trace = BrowserUseAdapter().convert(run_dir)
+
+    assert trace.run.termination_reason == "agent_finish"
+    finish_event = next(event for event in trace.events if event.event_type == "agent_finish")
+    assert finish_event.step_index == 0
+    assert finish_event.payload == {
+        "declared_success": True,
+        "reason": "Target page verified",
+    }
+    assert trace.verification and trace.verification.passed is True

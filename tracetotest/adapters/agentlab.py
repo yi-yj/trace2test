@@ -111,6 +111,9 @@ class AgentLabAdapter:
             actionable
             and parse_agentlab_action(actionable[-1][1].get("action")).type == "finish_task"
         )
+        finish_step = next(
+            (step for step in reversed(steps) if step.action.type == "finish_task"), None
+        )
         if failure_type == "environment":
             termination_reason = "environment_error"
         elif error:
@@ -118,7 +121,7 @@ class AgentLabAdapter:
         elif truncated:
             termination_reason = "max_steps"
         elif agent_declared_complete:
-            termination_reason = "agent_declared_complete"
+            termination_reason = "agent_finish"
         else:
             termination_reason = "verified"
         status = "error" if error else "truncated" if truncated else "succeeded" if succeeded else "failed"
@@ -163,7 +166,28 @@ class AgentLabAdapter:
                 termination_reason=termination_reason,
             ),
             steps=steps,
-            events=[
+            events=(
+                [
+                    EventRecord(
+                        event_id="evt_agent_finish",
+                        run_id=run_id,
+                        step_index=finish_step.step_index,
+                        timestamp_ns=int(finish_step.timestamp.timestamp() * 1_000_000_000),
+                        event_type="agent_finish",
+                        payload=redact(
+                            {
+                                "declared_success": True,
+                                "reason": finish_step.action.parameters.get(
+                                    "reason", finish_step.action.parameters.get("arg0", "")
+                                ),
+                            }
+                        ),
+                    )
+                ]
+                if finish_step
+                else []
+            )
+            + [
                 EventRecord(
                     event_id="evt_verification",
                     run_id=run_id,
