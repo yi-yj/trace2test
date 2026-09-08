@@ -35,7 +35,7 @@
 - `missing-export`：导出控件缺失；
 - `corrupt-export`：CSV 行内容不完整。
 
-正式报告保存在被 Git 忽略的 `artifacts/acceptance/<timestamp>/phase2.json`。本次报告目录为 `artifacts/acceptance/20260908_083810_086085/`，运行代码版本为 `1d7bf85eb6d53e3a03a493179620a60954892c73`，所有任务 manifest 均记录 `dirty=false`。
+正式报告保存在被 Git 忽略的 `artifacts/acceptance/<timestamp>/phase2.json`。迁移后复验报告目录为 `artifacts/acceptance/20260908_094327_460224/`，运行代码版本为 `d1ae2c4`，报告记录 `dirty=false`、`database_runs=44`。
 
 ## Phase 3
 
@@ -53,7 +53,7 @@
   --task-id filter-low-inventory
 ```
 
-本次报告目录为 `artifacts/acceptance/20260908_083635_864428/`，运行代码版本为 `1d7bf85eb6d53e3a03a493179620a60954892c73`，报告记录 `dirty=false`。
+迁移后复验报告目录为 `artifacts/acceptance/20260908_094332_029276/`，运行代码版本为 `d1ae2c4`，报告记录 `dirty=false`，并将脱敏连接位置记为 `postgresql://localhost:5432/tracetotest`。
 
 ## 自动化测试与限制
 
