@@ -1,7 +1,13 @@
+import tomllib
+from pathlib import Path
+
 import pytest
 
 from scripts.run_agentlab_web import _failure_type, _parse_args
 from scripts.capture_browser_state import _parse_args as parse_capture_args
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_real_site_demo_has_safe_bounded_defaults() -> None:
@@ -39,3 +45,11 @@ def test_initial_navigation_timeout_is_classified_as_environment() -> None:
     }
     assert _failure_type(summary, verifier_success=False) == "environment"
     assert _failure_type({"n_steps": 2}, verifier_success=False) == "agent"
+
+
+def test_browser_use_runtime_includes_trace_sdk_yaml_dependency() -> None:
+    config = tomllib.loads(
+        (ROOT / "integrations/browser_use/pyproject.toml").read_text(encoding="utf-8")
+    )
+    dependencies = config["project"]["dependencies"]
+    assert any(dependency.startswith("pyyaml") for dependency in dependencies)
