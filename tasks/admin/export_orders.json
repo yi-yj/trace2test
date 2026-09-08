@@ -1,0 +1,9 @@
+{
+  "task_id": "export-pending-orders", "version": "1.0.0", "suite_id": "admin-demo-v1",
+  "instruction": "Filter to pending orders and export those rows as orders.csv.",
+  "environment": {"fixture_id": "inventory-v1", "fixture_version": "1.0.0", "fixture_path": "fixtures/inventory/inventory_v1.json", "start_path": "/orders"},
+  "limits": {"max_steps": 10, "timeout_seconds": 90},
+  "verifier": {"verifier_id": "admin-state", "verifier_version": "1.0.0", "config": {"state_checks": [{"path": "active_order_status", "equals": "pending"}, {"path": "last_export_kind", "equals": "orders"}, {"path": "last_export_orders", "equals": ["O100", "O300"]}, {"path": "export_count", "equals": 1}], "download": {"filename": "orders.csv", "header": ["order_id", "customer", "status", "total"], "rows": [{"order_id": "O100", "customer": "Alice", "status": "pending", "total": "89.00"}, {"order_id": "O300", "customer": "Carol", "status": "pending", "total": "49.00"}]}}},
+  "safety": {"allow_download": true, "allow_database_mutation": false, "allow_external_upload": false},
+  "metadata": {"task_family": "data_export", "deterministic": true, "manual_steps": [{"action": "select", "label": "Status", "value": "pending"}, {"action": "click", "role": "button", "name": "Apply order filter"}, {"action": "download", "role": "link", "name": "Export orders CSV", "filename": "orders.csv"}]}
+}

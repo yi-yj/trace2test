@@ -20,6 +20,7 @@ class EnvironmentSpec(TaskModel):
     fixture_version: str
     fixture_path: str
     start_path: str = "/"
+    faults: list[str] = Field(default_factory=list)
 
     @field_validator("fixture_path")
     @classmethod

@@ -1,0 +1,9 @@
+{
+  "task_id": "logout", "version": "1.0.0", "suite_id": "admin-demo-v1",
+  "instruction": "Sign in with the demo operator account, then log out.",
+  "environment": {"fixture_id": "inventory-v1", "fixture_version": "1.0.0", "fixture_path": "fixtures/inventory/inventory_v1.json", "start_path": "/login"},
+  "limits": {"max_steps": 10, "timeout_seconds": 90},
+  "verifier": {"verifier_id": "admin-state", "verifier_version": "1.0.0", "config": {"url_contains": "/login", "state_checks": [{"path": "authenticated_user", "equals": null}, {"path": "login_count", "equals": 1}, {"path": "logout_count", "equals": 1}]}},
+  "safety": {"allow_download": false, "allow_database_mutation": false, "allow_external_upload": false},
+  "metadata": {"task_family": "login", "deterministic": true, "manual_steps": [{"action": "fill", "label": "Email", "value": "operator@example.test"}, {"action": "fill", "label": "Password", "value": "demo-pass"}, {"action": "click", "role": "button", "name": "Sign in"}, {"action": "click", "role": "link", "name": "Log out"}]}
+}

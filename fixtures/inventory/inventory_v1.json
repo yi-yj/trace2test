@@ -1,10 +1,18 @@
 {
   "fixture_id": "inventory-v1",
   "version": "1.0.0",
+  "users": [
+    {"email": "operator@example.test", "password": "demo-pass", "name": "Demo Operator"}
+  ],
   "products": [
     {"sku": "P100", "name": "Wireless Mouse", "stock": 5},
     {"sku": "P200", "name": "Mechanical Keyboard", "stock": 12},
     {"sku": "P300", "name": "27-inch Monitor", "stock": 8},
     {"sku": "P400", "name": "USB-C Hub", "stock": 0}
+  ],
+  "orders": [
+    {"order_id": "O100", "customer": "Alice", "status": "pending", "total": "89.00"},
+    {"order_id": "O200", "customer": "Bob", "status": "shipped", "total": "129.00"},
+    {"order_id": "O300", "customer": "Carol", "status": "pending", "total": "49.00"}
   ]
 }

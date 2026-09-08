@@ -8,13 +8,15 @@
 .venv/bin/python -m tracetotest <command> [options]
 ```
 
-目前提供三个子命令：
+目前提供五个子命令：
 
 | 子命令 | 作用 |
 | --- | --- |
 | `run` | 调度 AgentLab 或 Browser Use 执行新任务，保存原始轨迹并自动转换为 canonical trace |
 | `adapt` | 不再次运行 Agent，将已有的 AgentLab/Browser Use 产物转换为 canonical trace |
 | `inventory-e2e` | 重置库存 fixture，执行筛选/下载，并用页面、CSV 和后端状态端到端验证 Collector/Verifier |
+| `acceptance` | 执行 10 个自建后台任务和 4 种故障注入的 Phase 2 验收 |
+| `phase3-acceptance` | 从统一结果库验证同一 TaskSpec 的 AgentLab/Browser Use 运行 |
 
 查看命令参数：
 
@@ -366,3 +368,23 @@ Adapter 输入要求：
 6. 在 `tracetotest/cli.py` 注册框架名和调度函数。
 7. 增加 Schema、Adapter、失败路径和统一 CLI 合同测试。
 8. 用相同任务/模型/预算/verifier 与现有框架各运行一次，确认 canonical 输出可比较。
+## 13. TaskSpec 驱动与统一结果库
+
+自建任务使用 `--task` 直接加载版本化 TaskSpec：
+
+```bash
+.venv/bin/python -m tracetotest run \
+  --framework browser-use \
+  --task tasks/admin/filter_low_inventory.json
+```
+
+TaskSpec 提供 task/suite ID、instruction、fixture、start path、预算、安全边界和确定性 Verifier。Runner 启动并重置 localhost 后台，框架退出后才执行 Verifier，然后把 canonical trace 写入两个框架共享的 `DATABASE_URL`。
+
+默认数据库为 `sqlite:///./data/results.sqlite3`。命令行 `--database-url` 优先于环境变量。当前只接受 `sqlite:///` URL。
+
+Phase 2 与 Phase 3 复验命令：
+
+```bash
+.venv/bin/python -m tracetotest acceptance
+.venv/bin/python -m tracetotest phase3-acceptance --task-id filter-low-inventory
+```

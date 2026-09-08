@@ -1,0 +1,9 @@
+{
+  "task_id": "search-orders", "version": "1.0.0", "suite_id": "admin-demo-v1",
+  "instruction": "Find orders for customer Alice.",
+  "environment": {"fixture_id": "inventory-v1", "fixture_version": "1.0.0", "fixture_path": "fixtures/inventory/inventory_v1.json", "start_path": "/orders"},
+  "limits": {"max_steps": 8, "timeout_seconds": 90},
+  "verifier": {"verifier_id": "admin-state", "verifier_version": "1.0.0", "config": {"url_contains": "query=Alice", "state_checks": [{"path": "active_order_query", "equals": "Alice"}]}},
+  "safety": {"allow_download": false, "allow_database_mutation": false, "allow_external_upload": false},
+  "metadata": {"task_family": "orders", "deterministic": true, "manual_steps": [{"action": "fill", "label": "Customer or order", "value": "Alice"}, {"action": "click", "role": "button", "name": "Apply order filter"}]}
+}

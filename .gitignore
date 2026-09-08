@@ -39,5 +39,6 @@ traces/
 !tests/fixtures/traces/**
 *.log
 *.sqlite3
+data/
 minio-data/
 postgres-data/

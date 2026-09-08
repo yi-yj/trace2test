@@ -1,0 +1,9 @@
+{
+  "task_id": "ship-order", "version": "1.0.0", "suite_id": "admin-demo-v1",
+  "instruction": "Mark order O100 as shipped.",
+  "environment": {"fixture_id": "inventory-v1", "fixture_version": "1.0.0", "fixture_path": "fixtures/inventory/inventory_v1.json", "start_path": "/orders"},
+  "limits": {"max_steps": 8, "timeout_seconds": 90},
+  "verifier": {"verifier_id": "admin-state", "verifier_version": "1.0.0", "config": {"url_contains": "/orders", "state_checks": [{"path": "orders.0.status", "equals": "shipped"}, {"path": "database_mutations", "equals": 1}]}},
+  "safety": {"allow_download": false, "allow_database_mutation": true, "allow_external_upload": false, "prohibited_actions": ["delete"]},
+  "metadata": {"task_family": "orders", "deterministic": true, "manual_steps": [{"action": "click", "role": "button", "name": "Mark O100 shipped"}]}
+}

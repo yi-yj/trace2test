@@ -1,0 +1,9 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY apps ./apps
+COPY tracetotest/__init__.py ./tracetotest/__init__.py
+COPY tracetotest/fixtures ./tracetotest/fixtures
+COPY fixtures ./fixtures
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8080
+CMD ["python", "-m", "apps.inventory_demo", "--port", "8080"]

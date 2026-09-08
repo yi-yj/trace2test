@@ -55,10 +55,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cursor-move-ms", type=int, default=700, metavar="MS")
     parser.add_argument("--click-display-ms", type=int, default=450, metavar="MS")
     parser.add_argument("--navigation-timeout-ms", type=int, default=30_000, metavar="MS")
+    parser.add_argument("--return-run-dir-on-failure", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     parsed_url = urlparse(args.start_url)
-    if parsed_url.scheme != "https" or not parsed_url.hostname or parsed_url.username:
-        parser.error("--start-url must be a public HTTPS URL without embedded credentials")
+    local_http = parsed_url.scheme == "http" and parsed_url.hostname in {"127.0.0.1", "localhost"}
+    if (parsed_url.scheme != "https" and not local_http) or not parsed_url.hostname or parsed_url.username:
+        parser.error("--start-url must be HTTPS, or HTTP on localhost, without embedded credentials")
     if min(args.max_steps, args.navigation_timeout_ms) < 1:
         parser.error("--max-steps and --navigation-timeout-ms must be positive")
     if min(args.slow_mo, args.cursor_move_ms, args.click_display_ms) < 0:
@@ -219,7 +221,7 @@ def main(argv: Sequence[str] | None = None) -> Path:
             indent=2,
         )
     )
-    if summary.get("err_msg") or not verifier["success"]:
+    if (summary.get("err_msg") or not verifier["success"]) and not args.return_run_dir_on_failure:
         raise RuntimeError(f"Real-site demo failed; inspect {exp_dir}")
     return exp_dir
 

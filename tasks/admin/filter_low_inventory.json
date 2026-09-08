@@ -1,0 +1,9 @@
+{
+  "task_id": "filter-low-inventory", "version": "1.0.0", "suite_id": "admin-demo-v1",
+  "instruction": "Show only inventory items whose stock is less than 10, then declare the task complete.",
+  "environment": {"fixture_id": "inventory-v1", "fixture_version": "1.0.0", "fixture_path": "fixtures/inventory/inventory_v1.json", "start_path": "/inventory"},
+  "limits": {"max_steps": 8, "timeout_seconds": 90, "max_model_calls": 8, "max_cost": 1.0},
+  "verifier": {"verifier_id": "admin-state", "verifier_version": "1.0.0", "config": {"url_contains": "/inventory?max_stock=10", "state_checks": [{"path": "active_max_stock", "equals": 10}, {"path": "database_mutations", "equals": 0}]}},
+  "safety": {"allow_download": false, "allow_database_mutation": false, "allow_external_upload": false, "prohibited_actions": ["delete", "purchase", "external_upload"]},
+  "metadata": {"task_family": "inventory", "deterministic": true, "manual_steps": [{"action": "fill", "label": "Stock less than", "value": "10"}, {"action": "click", "role": "button", "name": "Apply filter"}]}
+}

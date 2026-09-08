@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import subprocess
 from datetime import datetime, timezone
@@ -15,6 +17,11 @@ from dotenv import load_dotenv
 from tracetotest.adapters import AgentLabAdapter, BrowserUseAdapter
 from tracetotest.browser_fonts import configure_browser_fonts
 from tracetotest.proxy import install_browser_proxy_environment, resolve_browser_proxy
+from tracetotest.storage import ResultStore
+from tracetotest.tasks import TaskSpec
+from tracetotest.trace import export_trace, load_trace
+from tracetotest.trace.redaction import redact
+from tracetotest.verification import VerificationContext, verifier_for
 
 ROOT = Path(__file__).resolve().parents[1]
 BROWSER_USE_RUNTIME = ROOT / "integrations/browser_use/.venv/bin/python"
@@ -27,6 +34,7 @@ def _path(value: str) -> Path:
 
 def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--framework", choices=("agentlab", "browser-use"), required=True)
+    parser.add_argument("--task", type=Path, help="Versioned TaskSpec JSON/YAML; task fields override inline task arguments")
     parser.add_argument("--task-id", default="web-task")
     parser.add_argument("--start-url", default="https://example.com")
     parser.add_argument("--goal", default="Click the 'More information...' link once.")
@@ -41,6 +49,7 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--navigation-timeout-ms", type=int, default=30_000)
     parser.add_argument("--storage-state", type=Path)
     parser.add_argument("--no-vision", action="store_true")
+    parser.add_argument("--database-url", help="Structured result store; defaults to DATABASE_URL")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -64,7 +73,47 @@ def _parser() -> argparse.ArgumentParser:
     inventory.add_argument("--no-virtual-cursor", action="store_true")
     inventory.add_argument("--cursor-move-ms", type=int, default=700, metavar="MS")
     inventory.add_argument("--click-display-ms", type=int, default=450, metavar="MS")
+    inventory.add_argument("--database-url")
+    acceptance = subparsers.add_parser("acceptance", help="Run the Phase 2 deterministic acceptance matrix")
+    acceptance.add_argument("--task-root", type=Path, default=ROOT / "tasks")
+    acceptance.add_argument("--output-root", type=Path)
+    acceptance.add_argument("--database-url")
+    phase3 = subparsers.add_parser("phase3-acceptance", help="Verify two framework runs from the unified result database")
+    phase3.add_argument("--task-id", default="filter-low-inventory")
+    phase3.add_argument("--output-root", type=Path)
+    phase3.add_argument("--database-url")
     return parser
+
+
+def _database(value: str | None = None) -> ResultStore:
+    load_dotenv(ROOT / ".env")
+    return ResultStore.from_url(value or os.getenv("DATABASE_URL", "sqlite:///./data/results.sqlite3"), ROOT)
+
+
+def _load_task(args: argparse.Namespace) -> tuple[TaskSpec, Path] | None:
+    if not args.task:
+        return None
+    path = _path(str(args.task))
+    task = TaskSpec.load(path)
+    args.task_id = task.task_id
+    args.goal = task.instruction
+    args.max_steps = task.limits.max_steps
+    expected = task.verifier.config.get("url_contains")
+    args.expected_url_contains = str(expected or "")
+    return task, path
+
+
+def _sync_manifest_artifact(trace, canonical_dir: Path, manifest: dict) -> None:
+    uri = trace.run.manifest_ref
+    if not uri.startswith("artifact://"):
+        return
+    target = canonical_dir / "artifacts" / uri.removeprefix("artifact://")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(redact(manifest), ensure_ascii=False, indent=2), encoding="utf-8")
+    for artifact in trace.artifacts:
+        if artifact.uri == uri:
+            artifact.sha256 = hashlib.sha256(target.read_bytes()).hexdigest()
+            break
 
 
 def _validate_run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -104,6 +153,7 @@ def _run_agentlab(args: argparse.Namespace) -> Path:
         str(args.click_display_ms),
         "--navigation-timeout-ms",
         str(args.navigation_timeout_ms),
+        "--return-run-dir-on-failure",
     ]
     if args.headed:
         argv.append("--headed")
@@ -201,8 +251,6 @@ def _run_browser_use(args: argparse.Namespace) -> Path:
         raise RuntimeError(f"Browser Use exited before writing a manifest; inspect {run_dir}")
     trace = BrowserUseAdapter().convert(run_dir)
     print(f"canonical_trace={run_dir / 'canonical/canonical_trace.json'}")
-    if completed.returncode or trace.run.status != "succeeded":
-        raise RuntimeError(f"Browser Use task did not pass its verifier; inspect {run_dir}")
     return run_dir
 
 
@@ -235,10 +283,73 @@ def main(argv: Sequence[str] | None = None) -> None:
             inventory_argv.append("--headed")
         if args.no_virtual_cursor:
             inventory_argv.append("--no-virtual-cursor")
-        _, passed = run(inventory_argv)
+        run_dir, passed = run(inventory_argv)
+        trace_path = run_dir / "canonical/canonical_trace.json"
+        _database(args.database_url).record(load_trace(trace_path), trace_path)
         if not passed:
             raise SystemExit(1)
         return
+    if args.command == "acceptance":
+        from tracetotest.runner import run_admin_acceptance
+
+        load_dotenv(ROOT / ".env")
+        output_root = args.output_root or _path(os.getenv("ARTIFACT_STORE_PATH", "artifacts"))
+        report, passed = run_admin_acceptance(_path(str(args.task_root)), _path(str(output_root)), _database(args.database_url))
+        print(json.dumps({"report": str(report), "passed": passed}, ensure_ascii=False))
+        if not passed:
+            raise SystemExit(1)
+        return
+    if args.command == "phase3-acceptance":
+        from tracetotest.runner import run_phase3_acceptance
+
+        load_dotenv(ROOT / ".env")
+        output_root = args.output_root or _path(os.getenv("ARTIFACT_STORE_PATH", "artifacts"))
+        report, passed = run_phase3_acceptance(args.task_id, _path(str(output_root)), _database(args.database_url))
+        print(json.dumps({"report": str(report), "passed": passed}, ensure_ascii=False))
+        if not passed: raise SystemExit(1)
+        return
+    loaded = _load_task(args)
+    if loaded:
+        from apps.inventory_demo import InventoryDemoServer
+
+        task, task_path = loaded
+        fixture_path = ROOT / task.environment.fixture_path
+        with InventoryDemoServer(fixture_path, faults=task.environment.faults) as server:
+            args.start_url = f"{server.base_url}{task.environment.start_path}"
+            _validate_run(args, parser)
+            run_dir = _run_agentlab(args) if args.framework == "agentlab" else _run_browser_use(args)
+            trace_path = run_dir / "canonical/canonical_trace.json"
+            trace = load_trace(trace_path)
+            final_url = next((step.after.url or step.observation.url for step in reversed(trace.steps)), args.start_url)
+            verification = verifier_for(task).verify(
+                task,
+                VerificationContext(base_url=server.base_url, download_dir=run_dir / "downloads", project_root=ROOT, facts={"final_url": final_url}),
+                trace,
+            )
+            trace.run.task_id = task.task_id
+            trace.run.suite_id = task.suite_id
+            trace.verification = verification
+            if trace.run.status != "error":
+                trace.run.status = "succeeded" if verification.passed else "failed"
+                trace.run.reward = float(verification.passed)
+            manifest_path = run_dir / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["task_spec"] = {"path": str(task_path.relative_to(ROOT)), "version": task.version, "sha256": TaskSpec.content_sha256(task_path)}
+            manifest["fixture"] = {"id": task.environment.fixture_id, "version": task.environment.fixture_version, "sha256": TaskSpec.content_sha256(fixture_path)}
+            manifest["deterministic_verification"] = verification.model_dump(mode="json", exclude_none=True)
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+            _sync_manifest_artifact(trace, trace_path.parent, manifest)
+            export_trace(trace, trace_path.parent)
+            _database(args.database_url).record(trace, trace_path)
+            print(json.dumps({"run_dir": str(run_dir), "database": str(_database(args.database_url).path), "passed": verification.passed}, ensure_ascii=False))
+            if not verification.passed:
+                raise RuntimeError(f"TaskSpec verifier failed; inspect {run_dir}")
+        return
     _validate_run(args, parser)
     run_dir = _run_agentlab(args) if args.framework == "agentlab" else _run_browser_use(args)
+    trace_path = run_dir / "canonical/canonical_trace.json"
+    trace = load_trace(trace_path)
+    _database(args.database_url).record(trace, trace_path)
     print(f"run_dir={run_dir}")
+    if trace.run.status != "succeeded":
+        raise RuntimeError(f"Task did not pass its verifier; inspect {run_dir}")

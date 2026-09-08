@@ -33,6 +33,11 @@
   },
   "metadata": {
     "task_family": "data_export",
-    "deterministic": true
+    "deterministic": true,
+    "manual_steps": [
+      {"action": "fill", "label": "Stock less than", "value": "10"},
+      {"action": "click", "role": "button", "name": "Apply filter"},
+      {"action": "download", "role": "link", "name": "Export filtered CSV", "filename": "low-inventory.csv"}
+    ]
   }
 }

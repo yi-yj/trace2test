@@ -12,6 +12,17 @@ Web/GUI Agent 轨迹回放、故障聚类与回归测试平台。
 .venv/bin/python -m tracetotest run --framework browser-use --headed
 ```
 
+正式自建任务直接读取 TaskSpec；无需重复手写 URL、目标、fixture、预算和验证条件：
+
+```bash
+.venv/bin/python -m tracetotest run \
+  --framework agentlab \
+  --task tasks/admin/filter_low_inventory.json \
+  --headed
+```
+
+运行结果统一写入 `.env` 的 `DATABASE_URL`（默认 `sqlite:///./data/results.sqlite3`）。
+
 传入同一组任务、预算和验证条件：
 
 ```bash
@@ -58,6 +69,18 @@ cd ../..
 当前验证器检查 CSV 文件、精确行内容、筛选阈值、导出次数、fixture checksum
 和禁止的数据库副作用。实现与 Schema 见
 [Task、Fixture、Collector 与 Verifier](docs/TASK_FIXTURE_VERIFIER.md)。
+
+## 自建后台与 Phase 2/3 验收
+
+后台包含登录、库存、订单和 CSV 导出，共 10 个 TaskSpec，并支持响应延迟、HTTP 500、控件缺失和错误导出四种带真值的故障注入。
+
+```bash
+docker compose up --build -d
+.venv/bin/python -m tracetotest acceptance
+.venv/bin/python -m tracetotest phase3-acceptance --task-id filter-low-inventory
+```
+
+验收范围、真实跨框架 Run ID 和当前限制见 [Phase 2 / Phase 3 验收记录](docs/PHASE2_PHASE3_ACCEPTANCE.md)。
 
 ## AgentLab + Qwen
 
