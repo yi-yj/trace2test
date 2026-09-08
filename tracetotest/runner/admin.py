@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,12 @@ from tracetotest.storage import ResultStore
 from tracetotest.tasks import TaskSpec
 from tracetotest.trace import ActionRecord, AfterState, ObservationRecord, RunRecord, StepRecord, TraceCollector, load_trace
 from tracetotest.verification import VerificationContext, verifier_for
+
+
+def _git_state(root: Path) -> dict[str, Any]:
+    commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+    dirty = bool(subprocess.run(["git", "status", "--porcelain"], cwd=root, check=True, capture_output=True, text=True).stdout.strip())
+    return {"commit": commit, "dirty": dirty}
 
 
 def _record_step(collector: TraceCollector, page: Any, index: int, operation: dict[str, Any], action) -> None:
@@ -97,6 +104,11 @@ def run_manual_task(task_path: Path, output_root: Path, database: ResultStore) -
         "task_sha256": hashlib.sha256(task_path.read_bytes()).hexdigest(),
         "fixture_id": task.environment.fixture_id, "fixture_version": task.environment.fixture_version,
         "fixture_sha256": hashlib.sha256(fixture_path.read_bytes()).hexdigest(),
+        "driver": {"name": "manual-playwright-acceptance-driver", "version": "1.0.0"},
+        "seed": 0,
+        "budget": task.limits.model_dump(mode="json"),
+        "git": _git_state(root),
+        "dependency_locks": {"uv_lock_sha256": hashlib.sha256((root / "uv.lock").read_bytes()).hexdigest()},
         "started_at": started.isoformat(), "finished_at": datetime.now(timezone.utc).isoformat(),
         "final_url": final_url, "faults": task.environment.faults,
         "result": result.model_dump(mode="json", exclude_none=True) if result else {"passed": False, "error": error},
@@ -148,7 +160,7 @@ def run_admin_acceptance(task_root: Path, output_root: Path, database: ResultSto
     compose_contract = {"path": "docker-compose.yml", "passed": (root / "docker-compose.yml").is_file() and "admin-demo:" in (root / "docker-compose.yml").read_text(encoding="utf-8")}
     report_dir = output_root / "acceptance" / datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
     report_dir.mkdir(parents=True, exist_ok=False)
-    payload = {"phase": 2, "tasks": results, "reset_checksum": reset_check, "verifier_negative_control": verifier_negative_control, "faults": faults, "compose_contract": compose_contract, "passed": 8 <= len(results) <= 10 and all(item["passed"] for item in results) and reset_check["passed"] and verifier_negative_control["passed"] and all(item["passed"] for item in faults) and compose_contract["passed"], "database_runs": database.count()}
+    payload = {"phase": 2, "git": _git_state(root), "tasks": results, "reset_checksum": reset_check, "verifier_negative_control": verifier_negative_control, "faults": faults, "compose_contract": compose_contract, "passed": 8 <= len(results) <= 10 and all(item["passed"] for item in results) and reset_check["passed"] and verifier_negative_control["passed"] and all(item["passed"] for item in faults) and compose_contract["passed"], "database_runs": database.count()}
     (report_dir / "phase2.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return report_dir, bool(payload["passed"])
 
@@ -184,6 +196,7 @@ def run_phase3_acceptance(task_id: str, output_root: Path, database: ResultStore
     report_dir = output_root / "acceptance" / datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
     report_dir.mkdir(parents=True, exist_ok=False)
     same_task_spec = len(task_hashes) == 1
-    payload = {"phase": 3, "task_id": task_id, "same_task_spec_sha256": next(iter(task_hashes), None) if same_task_spec else None, "same_result_database": str(database.path), "frameworks": frameworks, "passed": same_task_spec and all(item["passed"] for item in frameworks)}
+    root = Path(__file__).resolve().parents[2]
+    payload = {"phase": 3, "git": _git_state(root), "task_id": task_id, "same_task_spec_sha256": next(iter(task_hashes), None) if same_task_spec else None, "same_result_database": str(database.path), "frameworks": frameworks, "passed": same_task_spec and all(item["passed"] for item in frameworks)}
     (report_dir / "phase3.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return report_dir, bool(payload["passed"])
